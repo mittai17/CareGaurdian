@@ -1,0 +1,68 @@
+- generic [active] [ref=f1e1]:
+  - heading "Directory listing for /" [level=1] [ref=f1e2]
+  - separator [ref=f1e3]
+  - list [ref=f1e4]:
+    - listitem [ref=f1e5]:
+      - link ".env" [ref=f1e6] [cursor=pointer]:
+        - /url: .env
+    - listitem [ref=f1e7]:
+      - link ".expo/" [ref=f1e8] [cursor=pointer]:
+        - /url: .expo/
+    - listitem [ref=f1e9]:
+      - link "app/" [ref=f1e10] [cursor=pointer]:
+        - /url: app/
+    - listitem [ref=f1e11]:
+      - link "app.json" [ref=f1e12] [cursor=pointer]:
+        - /url: app.json
+    - listitem [ref=f1e13]:
+      - link "assets/" [ref=f1e14] [cursor=pointer]:
+        - /url: assets/
+    - listitem [ref=f1e15]:
+      - link "babel.config.js" [ref=f1e16] [cursor=pointer]:
+        - /url: babel.config.js
+    - listitem [ref=f1e17]:
+      - link "components/" [ref=f1e18] [cursor=pointer]:
+        - /url: components/
+    - listitem [ref=f1e19]:
+      - link "dist/" [ref=f1e20] [cursor=pointer]:
+        - /url: dist/
+    - listitem [ref=f1e21]:
+      - link "eslint.config.mjs" [ref=f1e22] [cursor=pointer]:
+        - /url: eslint.config.mjs
+    - listitem [ref=f1e23]:
+      - link "features/" [ref=f1e24] [cursor=pointer]:
+        - /url: features/
+    - listitem [ref=f1e25]:
+      - link "global.css" [ref=f1e26] [cursor=pointer]:
+        - /url: global.css
+    - listitem [ref=f1e27]:
+      - link "hooks/" [ref=f1e28] [cursor=pointer]:
+        - /url: hooks/
+    - listitem [ref=f1e29]:
+      - link "lib/" [ref=f1e30] [cursor=pointer]:
+        - /url: lib/
+    - listitem [ref=f1e31]:
+      - link "metro.config.js" [ref=f1e32] [cursor=pointer]:
+        - /url: metro.config.js
+    - listitem [ref=f1e33]:
+      - link "nativewind-env.d.ts" [ref=f1e34] [cursor=pointer]:
+        - /url: nativewind-env.d.ts
+    - listitem [ref=f1e35]:
+      - link "node_modules/" [ref=f1e36] [cursor=pointer]:
+        - /url: node_modules/
+    - listitem [ref=f1e37]:
+      - link "package.json" [ref=f1e38] [cursor=pointer]:
+        - /url: package.json
+    - listitem [ref=f1e39]:
+      - link "stores/" [ref=f1e40] [cursor=pointer]:
+        - /url: stores/
+    - listitem [ref=f1e41]:
+      - link "tailwind.config.js" [ref=f1e42] [cursor=pointer]:
+        - /url: tailwind.config.js
+    - listitem [ref=f1e43]:
+      - link "tsconfig.json" [ref=f1e44] [cursor=pointer]:
+        - /url: tsconfig.json
+    - listitem [ref=f1e45]:
+      - link "utils/" [ref=f1e46] [cursor=pointer]:
+        - /url: utils/
+  - separator [ref=f1e47]

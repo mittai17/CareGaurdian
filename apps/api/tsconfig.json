@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": false,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "strictPropertyInitialization": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "skipLibCheck": true,
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*.ts", "prisma/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

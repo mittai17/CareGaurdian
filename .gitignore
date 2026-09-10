@@ -1,0 +1,16 @@
+node_modules/
+.expo/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+.prisma/
+coverage/
+__pycache__/
+*.pyc
+.venv/
+*.sqlite
+*.sqlite3
+.env

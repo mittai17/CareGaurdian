@@ -1,0 +1,18 @@
+- generic [ref=f5e9]:
+  - generic [ref=f5e10]:
+    - heading "Baseline" [level=1] [ref=f5e11]
+    - generic [ref=f5e12]: Health monitoring that remembers
+  - generic [ref=f5e13]:
+    - generic [ref=f5e14]:
+      - generic [ref=f5e15]: Email
+      - textbox "Email address" [ref=f5e16]:
+        - /placeholder: you@example.com
+    - generic [ref=f5e17]:
+      - generic [ref=f5e18]: Password
+      - textbox "Password" [ref=f5e19]:
+        - /placeholder: Enter your password
+    - button " Sign In" [ref=f5e20] [cursor=pointer]:
+      - generic [ref=f5e21]: 
+      - generic [ref=f5e22]: Sign In
+    - link "Don't have an account? Create one" [ref=f5e23] [cursor=pointer]:
+      - /url: /register

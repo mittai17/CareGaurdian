@@ -1,0 +1,46 @@
+- generic [ref=f5e28]:
+  - generic [ref=f5e31]:
+    - generic [ref=f5e36]:
+      - heading "Good evening" [level=1] [ref=f5e37]
+      - generic [ref=f5e38]: Thursday 10 September
+      - button "Report a change" [ref=f5e39] [cursor=pointer]:
+        - generic [ref=f5e40]:
+          - generic [ref=f5e41]: 
+          - generic [ref=f5e43]:
+            - generic [ref=f5e44]: Report a Change
+            - generic [ref=f5e45]: Log observations, symptoms, or concerns
+          - generic [ref=f5e46]: 
+      - generic [ref=f5e47]:
+        - heading "Recent Observations" [level=1] [ref=f5e49]
+        - generic [ref=f5e50]:
+          - progressbar [ref=f5e51]
+          - generic "Loading observations…" [ref=f5e56]
+      - generic [ref=f5e57]:
+        - heading "Medications" [level=1] [ref=f5e58]
+        - generic [ref=f5e59]: No active medications
+    - heading "Baseline" [level=1] [ref=f5e62]
+  - tablist [ref=f5e64]:
+    - link "  Home" [ref=f5e65] [cursor=pointer]:
+      - /url: /
+      - generic:
+        - generic [ref=f5e66]: 
+        - generic [ref=f5e68]: 
+      - generic [ref=f5e70]: Home
+    - link "  Report" [ref=f5e71] [cursor=pointer]:
+      - /url: /report
+      - generic:
+        - generic [ref=f5e72]: 
+        - generic [ref=f5e74]: 
+      - generic [ref=f5e76]: Report
+    - link "  Timeline" [ref=f5e77] [cursor=pointer]:
+      - /url: /timeline
+      - generic:
+        - generic [ref=f5e78]: 
+        - generic [ref=f5e80]: 
+      - generic [ref=f5e82]: Timeline
+    - link "  Profile" [ref=f5e83] [cursor=pointer]:
+      - /url: /profile
+      - generic:
+        - generic [ref=f5e84]: 
+        - generic [ref=f5e86]: 
+      - generic [ref=f5e88]: Profile
