@@ -1,0 +1,28 @@
+{
+  "name": "baseline",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-Powered Persistent Health Memory for Elderly Patients",
+  "scripts": {
+    "dev:api": "pnpm --filter @baseline/api dev",
+    "dev:expo": "pnpm --filter @baseline/expo start",
+    "dev:ml": "cd services/ml && python -m uvicorn app.main:app --reload --port 8001",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:api": "pnpm --filter @baseline/api test",
+    "db:generate": "pnpm --filter @baseline/api prisma:generate",
+    "db:migrate": "pnpm --filter @baseline/api prisma:migrate",
+    "db:seed": "pnpm --filter @baseline/api prisma:seed",
+    "db:studio": "pnpm --filter @baseline/api prisma:studio"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.70.0"
+  }
+}

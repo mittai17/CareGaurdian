@@ -1,0 +1,31 @@
+- generic [ref=f9e9]:
+  - generic [ref=f9e12]:
+    - generic [ref=f9e14]:
+      - progressbar [ref=f9e15]
+      - generic "Loading…" [ref=f9e20]
+    - heading "Health Timeline" [level=1] [ref=f9e23]
+  - tablist [ref=f9e25]:
+    - link "  Home" [ref=f9e26] [cursor=pointer]:
+      - /url: /
+      - generic:
+        - generic [ref=f9e27]: 
+        - generic [ref=f9e29]: 
+      - generic [ref=f9e31]: Home
+    - link "  Report" [ref=f9e32] [cursor=pointer]:
+      - /url: /report
+      - generic:
+        - generic [ref=f9e33]: 
+        - generic [ref=f9e35]: 
+      - generic [ref=f9e37]: Report
+    - link "  Timeline" [ref=f9e38] [cursor=pointer]:
+      - /url: /timeline
+      - generic:
+        - generic [ref=f9e39]: 
+        - generic [ref=f9e41]: 
+      - generic [ref=f9e43]: Timeline
+    - link "  Profile" [ref=f9e44] [cursor=pointer]:
+      - /url: /profile
+      - generic:
+        - generic [ref=f9e45]: 
+        - generic [ref=f9e47]: 
+      - generic [ref=f9e49]: Profile
