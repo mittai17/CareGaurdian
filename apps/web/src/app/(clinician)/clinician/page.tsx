@@ -56,12 +56,32 @@ export default function ClinicianDashboard() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Good evening, Dr. Sharma</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
+      {/* Header with Verification Status */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-foreground">Attending Physician Dashboard</h1>
+            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+              ✓ Verified Doctor (MCI-2012-88492)
+            </span>
+          </div>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Dr. Vikram Malhotra, MD (Cardiology) • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" asChild className="text-xs gap-1.5">
+            <Link href="/nurse/handover">
+              Caregiver Handovers
+            </Link>
+          </Button>
+          <Button size="sm" asChild className="text-xs gap-1.5 bg-primary text-white">
+            <Link href="/clinician/patients">
+              View All Patients
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

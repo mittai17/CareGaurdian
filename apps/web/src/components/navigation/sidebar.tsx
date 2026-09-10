@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Heart, MessageSquare, Calendar,
-  CheckSquare, BarChart2, Settings, HelpCircle, Shield, Bell,
-  Activity, LogOut
+  CheckSquare, BarChart2, Settings, HelpCircle, Shield,
+  Activity, LogOut, Pill
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +14,9 @@ const navItems = [
   { href: '/clinician/patients', icon: Users, label: 'Patients' },
   { href: '/clinician/care-circle', icon: Heart, label: 'Care Circle' },
   { href: '/clinician/reports', icon: Activity, label: 'Reports' },
+  { href: '/clinician/prescriptions', icon: Pill, label: 'Prescriptions' },
   { href: '/clinician/messages', icon: MessageSquare, label: 'Messages' },
+  { href: '/clinician/caregivers', icon: Users, label: 'Caregivers' },
   { href: '/clinician/calendar', icon: Calendar, label: 'Calendar' },
   { href: '/clinician/tasks', icon: CheckSquare, label: 'Tasks' },
   { href: '/clinician/analytics', icon: BarChart2, label: 'Analytics' },

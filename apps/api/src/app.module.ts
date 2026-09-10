@@ -31,6 +31,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { EmergencyModule } from './modules/emergency/emergency.module';
 import { AiModule } from './modules/ai/ai.module';
 import { BriefModule } from './modules/brief/brief.module';
+import { MessagesModule } from './modules/messages/messages.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { BriefModule } from './modules/brief/brief.module';
     EmergencyModule,
     AiModule,
     BriefModule,
+    MessagesModule,
   ],
 })
 export class AppModule {}
