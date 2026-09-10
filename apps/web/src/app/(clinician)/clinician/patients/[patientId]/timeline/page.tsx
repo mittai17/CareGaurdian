@@ -11,23 +11,30 @@ import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
 import { YearTimeline, YearStatusLegend } from '@/components/timeline/year-timeline';
 import { HealthMetricCard, StatusBadge } from '@/components/health/health-metric-card';
-import { patientsApi } from '@/lib/api';
+import { patientsApi, timelineApi } from '@/lib/api';
 import { cn, formatDate, statusConfig, type YearStatus, eventTypeConfig } from '@/lib/utils';
 
 export default function TimelinePage({ params }: { params: { patientId: string } }) {
-  const [selectedYear, setSelectedYear] = useState<number>(timeline.currentYear);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        const [summary, timelineResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          timelineApi.yearTimeline(params.patientId).catch(() => null),
+        ]);
+        const defaultTimeline = { currentYear: 2026, years: [{ year: 2026, label: 'Current', status: 'ACTIVE', summary: 'Active' }] };
+        const fetchedTimeline = timelineResp?.data || defaultTimeline;
+        
         setData({
           patient: summary?.patient,
-          timeline: null,
+          timeline: fetchedTimeline,
           yearDetail: {},
         });
+        setSelectedYear(fetchedTimeline.currentYear);
       } catch (e) {
         console.error(e);
       } finally {
@@ -40,7 +47,7 @@ export default function TimelinePage({ params }: { params: { patientId: string }
   if (loading) return <div className="p-6">Loading timeline...</div>;
   if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
 
-  const { patient, yearDetail } = data;
+  const { patient, timeline, yearDetail } = data;
   const yearData = yearDetail[selectedYear];
 
   const patientData = {
@@ -53,19 +60,19 @@ export default function TimelinePage({ params }: { params: { patientId: string }
     lastClinicalReview: patient.updatedAt,
     careCircleCount: 5,
     status: 'ACTIVE',
-    currentYearStatus: timeline.years.find(y => y.year === timeline.currentYear)?.status,
+    currentYearStatus: timeline?.years?.find((y: any) => y.year === timeline.currentYear)?.status || 'ACTIVE',
   };
 
-  const selectedYearMeta = timeline.years.find(y => y.year === selectedYear);
+  const selectedYearMeta = timeline?.years?.find((y: any) => y.year === selectedYear);
   const statusCfg = selectedYearMeta ? statusConfig[selectedYearMeta.status as YearStatus] : null;
 
   const prevYear = () => {
-    const idx = timeline.years.findIndex(y => y.year === selectedYear);
+    const idx = timeline?.years?.findIndex((y: any) => y.year === selectedYear) ?? -1;
     if (idx > 0) setSelectedYear(timeline.years[idx - 1].year);
   };
   const nextYear = () => {
-    const idx = timeline.years.findIndex(y => y.year === selectedYear);
-    if (idx < timeline.years.length - 1) setSelectedYear(timeline.years[idx + 1].year);
+    const idx = timeline?.years?.findIndex((y: any) => y.year === selectedYear) ?? -1;
+    if (idx !== -1 && idx < timeline.years.length - 1) setSelectedYear(timeline.years[idx + 1].year);
   };
 
   const metrics = yearData?.metrics
@@ -94,7 +101,7 @@ export default function TimelinePage({ params }: { params: { patientId: string }
           </CardHeader>
           <CardContent className="pt-2">
             <YearTimeline
-              years={timeline.years}
+              years={timeline?.years || []}
               selectedYear={selectedYear}
               onSelectYear={setSelectedYear}
             />
@@ -107,7 +114,7 @@ export default function TimelinePage({ params }: { params: { patientId: string }
             {/* Year header */}
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
-                <Button variant="outline" size="icon" onClick={prevYear} disabled={selectedYear === timeline.years[0].year}>
+                <Button variant="outline" size="icon" onClick={prevYear} disabled={!timeline?.years?.length || selectedYear === timeline.years[0].year}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <div>
@@ -116,7 +123,7 @@ export default function TimelinePage({ params }: { params: { patientId: string }
                     {statusCfg && (
                       <StatusBadge status={selectedYearMeta.status as YearStatus} size="lg" />
                     )}
-                    {selectedYear === timeline.currentYear && (
+                    {selectedYear === timeline?.currentYear && (
                       <Badge variant="secondary">Current Year</Badge>
                     )}
                   </div>
@@ -124,11 +131,11 @@ export default function TimelinePage({ params }: { params: { patientId: string }
                     {selectedYearMeta.summary}
                   </p>
                 </div>
-                <Button variant="outline" size="icon" onClick={nextYear} disabled={selectedYear === timeline.years[timeline.years.length - 1].year}>
+                <Button variant="outline" size="icon" onClick={nextYear} disabled={!timeline?.years?.length || selectedYear === timeline.years[timeline.years.length - 1].year}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setSelectedYear(timeline.currentYear)}>
+              <Button variant="outline" size="sm" onClick={() => timeline?.currentYear && setSelectedYear(timeline.currentYear)}>
                 Jump to current year
               </Button>
             </div>

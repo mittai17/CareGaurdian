@@ -65,7 +65,7 @@ export default function CareCirclePage({ params }: { params: { patientId: string
   if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
 
   const { patient, members } = data;
-  const feed = [];
+  const feed: any[] = [];
   const displayMembers = members;
 
   const patientData = {

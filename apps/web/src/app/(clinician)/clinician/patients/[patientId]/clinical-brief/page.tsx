@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { patientsApi } from '@/lib/api';
+import { patientsApi, changesApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
 const sectionConfig = [
@@ -30,7 +30,7 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
       try {
         const [summary, briefResp] = await Promise.all([
           patientsApi.summary(params.patientId).catch(() => null),
-          patientsApi.clinicalBrief(params.patientId).catch(() => null),
+          changesApi.brief(params.patientId).catch(() => null),
         ]);
         setData({
           patient: summary?.patient,
