@@ -1,92 +1,91 @@
-const API_URL = 'http://localhost:3010/api/v1';
+import axios from 'axios';
 
-export class ApiError extends Error {
-  constructor(
-    public statusCode: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'ApiError';
+const API_BASE = '/api/v1';
+
+export const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('baseline_token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
   }
-}
+  return config;
+});
 
-function getToken(): string | null {
-  return localStorage.getItem('baseline_token');
-}
-
-export function setToken(token: string): void {
-  localStorage.setItem('baseline_token', token);
-}
-
-export function removeToken(): void {
-  localStorage.removeItem('baseline_token');
-}
-
-export interface ApiResponse<T> {
-  data: T;
-  meta?: Record<string, unknown>;
-}
-
-interface RequestOptions extends Omit<RequestInit, 'body'> {
-  body?: unknown;
-  params?: Record<string, string | number | boolean | undefined>;
-}
-
-function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>): string {
-  const separator = path.includes('?') ? '&' : '?';
-  let url = `${API_URL}${path}`;
-  if (params) {
-    const qs = Object.entries(params)
-      .filter(([, v]) => v !== undefined && v !== null)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-      .join('&');
-    if (qs) url = `${url}${separator}${qs}`;
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401 && typeof window !== 'undefined') {
+      // Could redirect to login
+    }
+    return Promise.reject(err as Error);
   }
-  return url;
-}
+);
 
-export async function apiFetch<T>(
-  path: string,
-  options: RequestOptions = {},
-): Promise<T> {
-  const { body, params, headers: customHeaders, ...rest } = options;
-  const token = getToken();
+// ─── Patient endpoints ────────────────────────────────────────────────────────
+export const patientsApi = {
+  list: () => api.get('/patients').then((r) => r.data),
+  get: (id: string) => api.get(`/patients/${id}`).then((r) => r.data),
+  summary: (id: string) => api.get(`/patients/${id}/summary`).then((r) => r.data),
+};
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(customHeaders as Record<string, string>),
-  };
+export const timelineApi = {
+  yearTimeline: (id: string) => api.get(`/timeline/${id}/year-timeline`).then((r) => r.data),
+  events: (id: string, year: number) =>
+    api.get(`/timeline/${id}/events`, { params: { year } }).then((r) => r.data),
+};
 
-  const response = await fetch(buildUrl(path, params), {
-    ...rest,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+export const changesApi = {
+  whatChanged: (id: string) => api.get(`/change-detection/${id}/what-changed`).then((r) => r.data),
+  brief: (id: string) => api.get(`/brief/${id}`).then((r) => r.data),
+};
 
-  if (response.status === 401) {
-    removeToken();
-    throw new ApiError(401, 'Unauthorized');
-  }
+export const observationsApi = {
+  list: (id: string) => api.get(`/observations/patient/${id}`).then((r) => r.data),
+  create: (id: string, data: unknown) =>
+    api.post(`/observations/patient/${id}`, data).then((r) => r.data),
+};
 
-  if (!response.ok) {
-    let message = response.statusText;
-    try {
-      const err = await response.json();
-      message = err.message ?? err.error ?? message;
-    } catch {}
-    throw new ApiError(response.status, message);
-  }
+export const medicationsApi = {
+  list: (id: string) => api.get(`/medications/patient/${id}`).then((r) => r.data),
+};
 
-  const json = (await response.json()) as ApiResponse<T>;
-  return json.data;
-}
+export const baselineApi = {
+  get: (id: string) => api.get(`/baselines/patient/${id}`).then((r) => r.data),
+};
 
-export const api = {
-  get: <T>(path: string, opts?: RequestOptions) =>
-    apiFetch<T>(path, { ...opts, method: 'GET' }),
-  post: <T>(path: string, body?: unknown, opts?: RequestOptions) =>
-    apiFetch<T>(path, { ...opts, method: 'POST', body }),
-  patch: <T>(path: string, body?: unknown, opts?: RequestOptions) =>
-    apiFetch<T>(path, { ...opts, method: 'PATCH', body }),
+export const episodesApi = {
+  list: (id: string) => api.get(`/episodes/patient/${id}`).then((r) => r.data),
+};
+
+export const careCircleApi = {
+  list: (id: string) => api.get(`/patients/${id}/care-circle`).then((r) => r.data),
+  feed: (id: string) => api.get(`/observations/patient/${id}`).then((r) => r.data),
+};
+
+export const contradictionsApi = {
+  list: (id: string) => api.get(`/contradictions/patient/${id}`).then((r) => r.data),
+};
+
+export const missingInfoApi = {
+  list: (id: string) => api.get(`/missing-information/patient/${id}`).then((r) => r.data),
+};
+
+export const memoryApi = {
+  get: (id: string) => api.get(`/memory/patient/${id}`).then((r) => r.data),
+};
+
+export const healthGraphApi = {
+  get: (id: string) => api.get(`/health-graph/patient/${id}`).then((r) => r.data),
+};
+
+export const authApi = {
+  login: (email: string, password: string) =>
+    api.post('/auth/login', { email, password }).then((r) => r.data),
+  register: (data: unknown) => api.post('/auth/register', data).then((r) => r.data),
+  me: () => api.get('/auth/me').then((r) => r.data),
 };

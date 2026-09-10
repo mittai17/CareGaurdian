@@ -2,6 +2,8 @@ node_modules/
 .expo/
 dist/
 build/
+.next/
+.turbo/
 .env
 .env.local
 *.log
@@ -13,4 +15,5 @@ __pycache__/
 .venv/
 *.sqlite
 *.sqlite3
-.env
+*.db
+
