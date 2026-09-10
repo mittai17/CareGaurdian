@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/health/health-metric-card';
 import { patientsApi } from '@/lib/api';
+import { useAuth } from '@/context/auth-context';
 import type { YearStatus } from '@/lib/utils';
 
 const stats = [
@@ -25,8 +26,11 @@ const priorityConfig = {
 };
 
 export default function ClinicianDashboard() {
+  const { user } = useAuth();
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const doctorName = user?.name || 'Dr. Vikram Malhotra';
 
   useEffect(() => {
     patientsApi.list()
@@ -66,7 +70,7 @@ export default function ClinicianDashboard() {
             </span>
           </div>
           <p className="text-muted-foreground mt-1 text-sm">
-            Dr. Vikram Malhotra, MD (Cardiology) • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {doctorName} • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
 

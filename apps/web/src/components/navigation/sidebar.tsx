@@ -27,9 +27,21 @@ const bottomItems = [
   { href: '/help', icon: HelpCircle, label: 'Help & Support' },
 ];
 
+import { useAuth } from '@/context/auth-context';
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const displayName = user?.name || 'Dr. Vikram Malhotra';
+  const displayRole = user?.roles?.[0] ? user.roles[0].replace('_', ' ') : 'Internal Medicine';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0]?.toUpperCase())
+    .join('') || 'DR';
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
@@ -53,11 +65,11 @@ export function Sidebar() {
       <div className="border-b border-border px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
-            PS
+            {initials}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate">Dr. Priya Sharma</p>
-            <p className="text-xs text-muted-foreground truncate">Internal Medicine</p>
+            <p className="text-sm font-medium truncate">{displayName}</p>
+            <p className="text-xs text-muted-foreground truncate capitalize">{displayRole.toLowerCase()}</p>
           </div>
           <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
             <span className="sr-only">Online</span>
@@ -110,10 +122,7 @@ export function Sidebar() {
           </Link>
         ))}
         <button
-          onClick={() => {
-            localStorage.removeItem('baseline_token');
-            router.push('/auth/login');
-          }}
+          onClick={logout}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors text-left"
         >
           <LogOut className="h-4 w-4 flex-shrink-0" />
