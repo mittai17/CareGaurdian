@@ -178,32 +178,76 @@ async function seedPatientsAndCaregivers(doctorIds: string[], adminId: string) {
     for (const m of pd.meds) await prisma.medication.create({data:{patientId:patient.id,name:m.name,genericName:m.gen,dosage:m.dose,frequency:m.freq,route:'oral',startedAt:dateOf(m.since),status:'ACTIVE',prescribedBy:m.by,notes:m.note??null}});
     for (const l of pd.labs) await prisma.labResult.create({data:{patientId:patient.id,testName:l.test,value:l.val,unit:l.unit||null,referenceRange:l.ref||null,collectedAt:l.date,interpretation:l.interp||null}});
 
+    const rand = (max: number) => Math.floor(Math.random() * max);
+    const randEl = <T>(arr: T[]): T => arr[rand(arr.length)];
+    const severityLevels = ['NORMAL', 'MILD', 'MODERATE', 'SEVERE'] as const;
+    
+    // Dynamic base observations
     const cats=['CONFUSION','APPETITE','MOBILITY','SLEEP','MOOD'] as const;
-    const baseObs=cats.flatMap((c,ci)=>Array.from({length:8},(_,i)=>({patientId:patient.id,sourceType:'CAREGIVER' as const,category:c,rawText:c.toLowerCase()+' observation for '+pd.fn+' #'+(i+1),structured:{normalizedScore:2+(i%2),score:2+(i%2),severity:i%3===0?'MILD':'NORMAL'},severity:i%3===0?'MILD':null,occurredAt:daysAgo(88-i*10-ci),verificationStatus:'REPORTED' as const})));
-    await prisma.observation.createMany({data:baseObs as never});
-    await prisma.observation.createMany({data:[
-      {patientId:patient.id,sourceType:'CAREGIVER',category:'CONFUSION',rawText:'Patient appeared confused about medications',structured:{normalizedScore:7,score:7,severity:'MODERATE'},severity:'MODERATE',occurredAt:daysAgo(3),verificationStatus:'REPORTED'},
-      {patientId:patient.id,sourceType:'CAREGIVER',category:'APPETITE',rawText:'Reduced appetite — skipped lunch',structured:{normalizedScore:6,score:6,severity:'MODERATE'},severity:'MODERATE',occurredAt:daysAgo(2),verificationStatus:'REPORTED'},
-      {patientId:patient.id,sourceType:'CAREGIVER',category:'MOBILITY',rawText:'Walking slower, needed assistance',structured:{normalizedScore:6.5,score:6.5,severity:'MODERATE',steps:1800},severity:'MODERATE',occurredAt:daysAgo(1),verificationStatus:'REPORTED'},
-    ] as never});
+    const baseObs = cats.flatMap((c,ci) => Array.from({length: rand(4)+2}, (_,i) => {
+      const sev = severityLevels[rand(3)];
+      return {
+        patientId: patient.id,
+        sourceType: 'CAREGIVER' as const,
+        category: c,
+        rawText: `Routine observation for ${pd.fn} regarding ${c.toLowerCase()}.`,
+        structured: { severity: sev },
+        severity: sev === 'NORMAL' ? null : sev,
+        occurredAt: daysAgo(rand(60) + 10),
+        verificationStatus: 'REPORTED' as const
+      };
+    }));
+    await prisma.observation.createMany({data: baseObs as never});
 
-    await prisma.healthEvent.createMany({data:[
-      {patientId:patient.id,type:'MEDICATION_CHANGED',timestamp:daysAgo(8),sourceType:'CLINICIAN',status:'VERIFIED',confidence:0.95,description:'Medication review by '+docName,metadata:{}},
-      {patientId:patient.id,type:'NEAR_FALL',timestamp:daysAgo(40),sourceType:'CAREGIVER',status:'REPORTED',confidence:0.8,description:'Near fall caught by caregiver',metadata:{location:'bathroom'}},
-      {patientId:patient.id,type:'APPETITE_CHANGE',timestamp:daysAgo(5),sourceType:'CAREGIVER',status:'REPORTED',confidence:0.8,description:'Reduced appetite over past week',metadata:{}},
-      {patientId:patient.id,type:'COGNITIVE_CHANGE',timestamp:daysAgo(3),sourceType:'CAREGIVER',status:'REPORTED',confidence:0.75,description:'Confusion about day of week',metadata:{}},
-    ] as never});
+    // Recent dynamic observations
+    const recentObsText = [
+      "Seemed a bit confused today.",
+      "Ate less than usual.",
+      "Walking slower today.",
+      "Had trouble sleeping last night.",
+      "Felt very tired.",
+      "Complained of minor pain."
+    ];
+    const recentObs = Array.from({length: rand(3)+2}, (_,i) => ({
+      patientId: patient.id,
+      sourceType: 'CAREGIVER',
+      category: randEl(cats),
+      rawText: randEl(recentObsText),
+      structured: { severity: 'MODERATE' },
+      severity: 'MODERATE',
+      occurredAt: daysAgo(rand(5) + 1),
+      verificationStatus: 'REPORTED'
+    }));
+    await prisma.observation.createMany({data: recentObs as never});
 
+    // Dynamic events
+    const eventTypes = ['MEDICATION_CHANGED', 'NEAR_FALL', 'APPETITE_CHANGE', 'COGNITIVE_CHANGE', 'CHECK_IN'];
+    const events = Array.from({length: rand(4)+1}, (_,i) => {
+      const type = randEl(eventTypes);
+      return {
+        patientId: patient.id,
+        type,
+        timestamp: daysAgo(rand(40)+1),
+        sourceType: type === 'CHECK_IN' ? 'SYSTEM' : 'CAREGIVER',
+        status: 'REPORTED',
+        confidence: 0.8,
+        description: `Logged event for ${type.toLowerCase().replace('_', ' ')}`,
+        metadata: {}
+      };
+    });
+    await prisma.healthEvent.createMany({data: events as never});
+
+    // Dynamic memory facts
     await prisma.healthMemoryFact.createMany({data:[
-      {patientId:patient.id,memoryType:'FACT',category:'mobility',content:pd.fn+' typically walks 3000-4000 steps per day',provenance:{source:'CAREGIVER',record:'activity-log'}},
-      {patientId:patient.id,memoryType:'FACT',category:'medication',content:'Managed own medications independently until recently',provenance:{source:'CAREGIVER',record:'care-notes'}},
-      {patientId:patient.id,memoryType:'OBSERVATION',category:'cognitive',content:'Occasionally forgets recent conversations but self-corrects',provenance:{source:'CAREGIVER',record:'observation-log'}},
+      {patientId:patient.id,memoryType:'FACT',category:'general',content:`${pd.fn} is typically independent with basic ADLs.`,provenance:{source:'SYSTEM'}},
+      {patientId:patient.id,memoryType:'OBSERVATION',category:'mood',content:`${pd.fn} usually enjoys visits from family.`,provenance:{source:'CAREGIVER'}}
     ]});
 
+    // Dynamic missing info
+    const missingCats = ['COGNITIVE_ASSESSMENT', 'FALL_RISK_ASSESSMENT', 'MEDICATION_RECONCILIATION', 'ANNUAL_WELLNESS'];
     await prisma.missingInformation.createMany({data:[
-      {patientId:patient.id,category:'COGNITIVE_ASSESSMENT',description:'No formal cognitive assessment in past 18 months',severity:'REVIEW',status:'OPEN'},
-      {patientId:patient.id,category:'FALL_RISK_ASSESSMENT',description:'Fall risk assessment outdated over 12 months ago',severity:'ATTENTION',status:'OPEN'},
-      {patientId:patient.id,category:'MEDICATION_RECONCILIATION',description:'Full medication reconciliation needed after recent prescription changes',severity:'REVIEW',status:'OPEN'},
+      {patientId:patient.id,category:randEl(missingCats),description:'Assessment is due for review.',severity:'REVIEW',status:'OPEN'},
+      {patientId:patient.id,category:randEl(missingCats),description:'Outdated information, please update.',severity:'ATTENTION',status:'OPEN'}
     ] as never});
 
     console.log('  Patient: '+pd.fn+' '+pd.ln+' ('+patient.id+')');
