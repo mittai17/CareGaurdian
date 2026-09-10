@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PatientHeader } from '@/components/patient/patient-header';
 import { patientsApi, medicationsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 import { cn, formatDate } from '@/lib/utils';
 
 const signalConfig: Record<string, { label: string; color: string; icon: string }> = {
@@ -27,8 +28,16 @@ export default function MedicationsPage({ params }: { params: { patientId: strin
           patientsApi.summary(params.patientId).catch(() => null),
           medicationsApi.list(params.patientId).catch(() => null),
         ]);
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+
         setData({
-          patient: summary?.patient,
+          patient: summary?.patient || fallbackPatient,
           meds: medsResp || [],
         });
       } catch (e) {

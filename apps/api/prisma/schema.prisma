@@ -227,6 +227,7 @@ model Patient {
   emergencyContactPhone String?
   timezone              String                             @default("UTC")
   preferredLanguage      String                             @default("en")
+  dementiaStage         String?
   createdById           String?
   createdBy             User?                              @relation("PatientCreatedBy", fields: [createdById], references: [id])
   createdAt             DateTime                            @default(now())

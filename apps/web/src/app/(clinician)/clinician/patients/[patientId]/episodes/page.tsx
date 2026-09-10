@@ -1,19 +1,21 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle, Info, ArrowRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Stethoscope, Building2, Calendar, Clock, ArrowRight, ActivitySquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { patientsApi } from '@/lib/api';
+import { patientsApi, encountersApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 import { cn, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 
-const similarityColor = (score: number) => {
-  if (score >= 0.8) return 'text-red-700 bg-red-50 border-red-200';
-  if (score >= 0.65) return 'text-orange-700 bg-orange-50 border-orange-200';
-  return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+const encounterTypeConfig: Record<string, { label: string; color: string; icon: any }> = {
+  OUTPATIENT: { label: 'Outpatient Visit', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Stethoscope },
+  EMERGENCY:  { label: 'Emergency Visit', color: 'bg-red-50 text-red-700 border-red-200', icon: AlertTriangle },
+  INPATIENT:  { label: 'Inpatient Admission', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: Building2 },
+  TELEHEALTH: { label: 'Telehealth', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Calendar },
 };
 
 export default function EpisodesPage({ params }: { params: { patientId: string } }) {
@@ -23,10 +25,26 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
   useEffect(() => {
     async function loadData() {
       try {
-        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        const [summary, encountersResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          encountersApi.list(params.patientId).catch(() => []),
+        ]);
+
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Patient',
+          lastName: '',
+          dateOfBirth: '1950-01-01',
+          gender: 'Unknown',
+        };
+
+        const encounters = Array.isArray(encountersResp)
+          ? encountersResp
+          : (encountersResp as any)?.encounters ?? [];
+
         setData({
-          patient: summary?.patient,
-          episodes: [],
+          patient: summary?.patient || fallbackPatient,
+          encounters,
         });
       } catch (e) {
         console.error(e);
@@ -37,10 +55,10 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
     loadData();
   }, [params.patientId]);
 
-  if (loading) return <div className="p-6">Loading episodes...</div>;
+  if (loading) return <div className="p-6">Loading clinical visit history...</div>;
   if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
 
-  const { patient, episodes } = data;
+  const { patient, encounters } = data;
 
   const patientData = {
     id: patient.id,
@@ -48,142 +66,131 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
     lastName: patient.lastName,
     dateOfBirth: patient.dateOfBirth,
     gender: patient.gender,
-    primaryDoctor: 'Dr. Elena Chen',
+    primaryDoctor: patient.primaryDoctor ?? 'Assigned Clinician',
     lastClinicalReview: patient.updatedAt,
     careCircleCount: 5,
     status: 'ACTIVE',
-    currentYearStatus: 'ACTIVE',
+    currentYearStatus: patient.currentYearStatus ?? 'ACTIVE',
   };
 
-  const currentPattern = [
-    { event: 'Medication changed (Metformin dose doubled)', date: '2026-09-02' },
-    { event: 'Appetite reduced', date: '2026-09-06' },
-    { event: 'Mobility reduced (37% below baseline)', date: '2026-09-08' },
-    { event: 'Confusion reports (4 observations)', date: '2026-09-10' },
-  ];
+  const emergencyVisits = encounters.filter((e: any) => e.type === 'EMERGENCY');
+  const outpatientVisits = encounters.filter((e: any) => e.type !== 'EMERGENCY');
 
   return (
     <>
       <PatientHeader patient={patientData} />
       <div className="p-6 space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold">Historical Episode Comparison</h1>
+          <h1 className="text-2xl font-bold">Clinical Visit History</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Comparing current pattern with {patient.firstName}&apos;s previous health episodes.
-            Pattern similarity does not establish causation or predict outcomes.
+            {encounters.length} recorded clinical encounters for {patient.firstName} {patient.lastName}.
           </p>
         </div>
 
-        {/* Current pattern */}
-        <Card className="border-2 border-primary/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              Current Pattern — 2026
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="relative pl-4">
-              <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary/30" />
-              {currentPattern.map((step, i) => (
-                <div key={i} className="relative flex items-start gap-3 pb-3">
-                  <div className="absolute -left-[17px] mt-1.5 h-3 w-3 rounded-full border-2 border-primary bg-white" />
-                  <div>
-                    <p className="text-sm font-medium">{step.event}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(step.date)}</p>
-                  </div>
+        {/* Summary stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <Stethoscope className="h-6 w-6 text-blue-600" />
+                <div>
+                  <p className="text-2xl font-bold text-blue-900">{outpatientVisits.length}</p>
+                  <p className="text-xs text-blue-700 font-medium">Outpatient Visits</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-red-50 border-red-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+                <div>
+                  <p className="text-2xl font-bold text-red-900">{emergencyVisits.length}</p>
+                  <p className="text-xs text-red-700 font-medium">Emergency Visits</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-emerald-50 border-emerald-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <ActivitySquare className="h-6 w-6 text-emerald-600" />
+                <div>
+                  <p className="text-2xl font-bold text-emerald-900">{encounters.length}</p>
+                  <p className="text-xs text-emerald-700 font-medium">Total Encounters</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Past episodes */}
-        <h2 className="text-lg font-semibold">Previous Episodes</h2>
-        <div className="space-y-5">
-          {episodes.map((ep: any) => (
-            <Card key={ep.id} className="card-hover">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h3 className="font-semibold">{ep.title}</h3>
-                      <span className={cn('rounded-full border px-2.5 py-0.5 text-xs font-semibold', similarityColor(ep.similarityScore))}>
-                        {ep.similarityLabel} ({Math.round(ep.similarityScore * 100)}%)
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {formatDate(ep.startDate)} → {ep.endDate ? formatDate(ep.endDate) : 'Ongoing'}
-                    </p>
-                  </div>
-                  <Badge variant={ep.severity === 'CRITICAL' ? 'destructive' : 'warning'}>{ep.severity}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Past episode pattern */}
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Episode Pattern</p>
-                    <div className="relative pl-4">
-                      <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gray-200" />
-                      {ep.pattern.map((step: any, i: number) => {
-                        const isShared = currentPattern.some(cp =>
-                          cp.event.toLowerCase().split(' ').some(word => word.length > 4 && step.event.toLowerCase().includes(word))
-                        );
-                        return (
-                          <div key={i} className="relative flex items-start gap-3 pb-3">
-                            <div className={cn('absolute -left-[17px] mt-1.5 h-3 w-3 rounded-full border-2 bg-white',
-                              isShared ? 'border-orange-500' : 'border-gray-300'
-                            )} />
-                            <div>
-                              <p className={cn('text-sm', isShared ? 'font-semibold text-orange-700' : 'text-muted-foreground')}>
-                                {step.event}
-                              </p>
-                              <p className="text-xs text-muted-foreground">{formatDate(step.date)}</p>
-                            </div>
+        {/* Encounter list */}
+        {encounters.length === 0 ? (
+          <Card>
+            <CardContent className="pt-10 pb-10 text-center text-muted-foreground">
+              <ActivitySquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">No clinical encounters recorded yet.</p>
+              <p className="text-sm mt-1">Encounters will appear here as they are logged.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">All Encounters</h2>
+            {encounters.map((enc: any) => {
+              const cfg = encounterTypeConfig[enc.type] ?? encounterTypeConfig.OUTPATIENT;
+              const Icon = cfg.icon;
+              return (
+                <Card key={enc.id} className={cn('card-hover border', enc.type === 'EMERGENCY' && 'border-red-200')}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className={cn('p-2 rounded-lg border', cfg.color)}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-base">{enc.reason ?? enc.type}</h3>
+                          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Stethoscope className="h-3.5 w-3.5" />
+                              {enc.providerName ?? 'Clinician'}
+                            </span>
+                            {enc.location && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="h-3.5 w-3.5" />
+                                {enc.location}
+                              </span>
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Episode details */}
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Outcome</p>
-                      <p className="text-sm">{ep.outcome}</p>
-                    </div>
-                    {ep.symptoms.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Symptoms</p>
-                        <div className="flex flex-wrap gap-1">
-                          {ep.symptoms.map((s: string) => (
-                            <span key={s} className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{s}</span>
-                          ))}
                         </div>
                       </div>
-                    )}
-                    {ep.medicationsInvolved.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Medications Involved</p>
-                        <div className="flex flex-wrap gap-1">
-                          {ep.medicationsInvolved.map((m: string) => (
-                            <span key={m} className="rounded bg-blue-50 border border-blue-100 px-2 py-0.5 text-xs text-blue-700">{m}</span>
-                          ))}
-                        </div>
+                      <div className="text-right shrink-0">
+                        <Badge variant="outline" className={cn('text-xs border', cfg.color)}>{cfg.label}</Badge>
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          {enc.startedAt ? formatDate(enc.startedAt) : '—'}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  </CardHeader>
+                  {enc.notes && (
+                    <CardContent className="pt-0">
+                      <div className="rounded-lg bg-muted/40 border border-muted px-4 py-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Clinical Notes</p>
+                        <p className="text-sm">{enc.notes}</p>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
-                {/* Warning */}
-                <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-800 italic">{ep.warning}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 italic">
+            This list shows clinical encounters recorded in CareGuardian. For a complete hospital discharge history,
+            consult the patient&apos;s full medical records.
+          </p>
         </div>
       </div>
     </>

@@ -5,13 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Heart, MessageSquare, Calendar,
   CheckSquare, BarChart2, Settings, HelpCircle, Shield,
-  Activity, LogOut, Pill
+  Activity, LogOut, Pill, Home, User, Bell, FileSpreadsheet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAuth } from '@/context/auth-context';
 
-const navItems = [
+const clinicianNavItems = [
   { href: '/clinician', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/clinician/patients', icon: Users, label: 'Patients' },
   { href: '/clinician/care-circle', icon: Heart, label: 'Care Circle' },
@@ -22,6 +22,31 @@ const navItems = [
   { href: '/clinician/calendar', icon: Calendar, label: 'Calendar' },
   { href: '/clinician/tasks', icon: CheckSquare, label: 'Tasks' },
   { href: '/clinician/analytics', icon: BarChart2, label: 'Analytics' },
+];
+
+const patientNavItems = [
+  { href: '/patient', label: 'Home', icon: Home, exact: true },
+  { href: '/patient#medicines', label: 'Medicines', icon: Pill },
+  { href: '/patient#caregiver', label: 'Caregiver', icon: Users },
+  { href: '/patient/profile', label: 'Profile', icon: User },
+];
+
+const caregiverNavItems = [
+  { href: '/caregiver', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/caregiver#patient-overview', label: 'Patient', icon: Heart },
+  { href: '/caregiver#tasks', label: 'Tasks', icon: CheckSquare },
+  { href: '/caregiver#reminders', label: 'Reminders', icon: Bell },
+  { href: '/clinician/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/clinician/settings', label: 'Profile', icon: User },
+];
+
+const nurseNavItems = [
+  { href: '/nurse', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+  { href: '/clinician/patients', icon: Users, label: 'Patients' },
+  { href: '/clinician/tasks', icon: CheckSquare, label: 'Tasks' },
+  { href: '/nurse/handover', icon: FileSpreadsheet, label: 'Handover' },
+  { href: '/clinician/messages', icon: MessageSquare, label: 'Messages' },
+  { href: '/clinician/settings', icon: User, label: 'Profile' },
 ];
 
 const bottomItems = [
@@ -35,9 +60,22 @@ export function Sidebar() {
   const { user, logout } = useAuth();
 
   const displayName = user?.name || 'Dr. Vikram Malhotra';
-  const displayRole = user?.roles?.[0]
-    ? user.roles[0].replace('_', ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
-    : 'Attending Physician';
+  
+  // Determine active role mode from pathname
+  let activeRole = 'clinician';
+  if (pathname.startsWith('/patient')) activeRole = 'patient';
+  else if (pathname.startsWith('/caregiver')) activeRole = 'caregiver';
+  else if (pathname.startsWith('/nurse')) activeRole = 'nurse';
+
+  let displayRole = 'Attending Physician';
+  if (activeRole === 'patient') displayRole = 'Patient';
+  else if (activeRole === 'caregiver') displayRole = 'Family Caregiver';
+  else if (activeRole === 'nurse') displayRole = 'Registered Nurse';
+  
+  if (user?.roles?.[0] && activeRole === 'clinician') {
+    displayRole = user.roles[0].replace('_', ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
   const initials = displayName
     .split(' ')
     .filter(Boolean)
@@ -45,9 +83,18 @@ export function Sidebar() {
     .map((p) => p[0].toUpperCase())
     .join('');
 
+  let navItems = clinicianNavItems;
+  if (activeRole === 'patient') navItems = patientNavItems;
+  else if (activeRole === 'caregiver') navItems = caregiverNavItems;
+  else if (activeRole === 'nurse') navItems = nurseNavItems;
+
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
-    return pathname.startsWith(href) && href !== '/clinician';
+    // Don't highlight dashboard when we are on a deeper path
+    if (href === '/clinician' || href === '/patient' || href === '/caregiver' || href === '/nurse') {
+      return pathname === href;
+    }
+    return pathname.startsWith(href);
   };
 
   return (
@@ -82,7 +129,7 @@ export function Sidebar() {
       {/* Main nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
         {navItems.map(({ href, icon: Icon, label, exact }) => {
-          const active = isActive(href, exact) || (exact && pathname === '/clinician');
+          const active = isActive(href, exact);
           return (
             <Link
               key={href}

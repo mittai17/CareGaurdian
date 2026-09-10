@@ -37,9 +37,9 @@ export const patientsApi = {
 };
 
 export const timelineApi = {
-  yearTimeline: (id: string) => api.get(`/timeline/${id}/year-timeline`).then(unwrap),
+  yearTimeline: (id: string) => api.get(`/patients/${id}/year-timeline`).then(unwrap),
   events: (id: string, year: number) =>
-    api.get(`/timeline/${id}/events`, { params: { year } }).then(unwrap),
+    api.get(`/patients/${id}/timeline`, { params: { year } }).then(unwrap),
 };
 
 export const changesApi = {
@@ -48,13 +48,13 @@ export const changesApi = {
 };
 
 export const observationsApi = {
-  list: (id: string) => api.get(`/observations/patient/${id}`).then(unwrap),
+  list: (id: string) => api.get(`/patients/${id}/observations`).then(unwrap),
   create: (id: string, data: unknown) =>
-    api.post(`/observations/patient/${id}`, data).then(unwrap),
+    api.post(`/patients/${id}/observations`, data).then(unwrap),
 };
 
 export const medicationsApi = {
-  list: (id: string) => api.get(`/medications/patient/${id}`).then(unwrap),
+  list: (id: string) => api.get(`/patients/${id}/medications`).then(unwrap),
 };
 
 export const baselineApi = {
@@ -65,9 +65,17 @@ export const episodesApi = {
   list: (id: string) => api.get(`/episodes/patient/${id}`).then(unwrap),
 };
 
+export const encountersApi = {
+  list: (id: string) => api.get(`/patients/${id}/encounters`).then(unwrap),
+};
+
+export const labsApi = {
+  list: (id: string) => api.get(`/patients/${id}/lab-results`).then(unwrap),
+};
+
 export const careCircleApi = {
   list: (id: string) => api.get(`/patients/${id}/care-circle`).then(unwrap),
-  feed: (id: string) => api.get(`/observations/patient/${id}`).then(unwrap),
+  feed: (id: string) => api.get(`/patients/${id}/observations`).then(unwrap),
 };
 
 export const contradictionsApi = {

@@ -57,14 +57,22 @@ export default function PatientsPage() {
     patientsApi.list()
       .then((data: any[]) => {
         if (Array.isArray(data) && data.length > 0) {
-          // Merge: use mock overlay for rich fields, DB for source-of-truth name/id
-          const merged = data.map((p: any, i: number) => {
-            const mock = MOCK_PATIENTS.find(m => m.id === p.id);
-            return mock
-              ? { ...mock, firstName: p.firstName ?? mock.firstName, lastName: p.lastName ?? mock.lastName }
-              : { ...p, conditions: ['General Care'], risk: 'Stable', lastVisit: new Date().toISOString().split('T')[0], doctor: 'Dr. Vikram Malhotra', age: 70, gender: p.gender || 'Unknown', careCircle: 2 };
+          // Merge: iterate over MOCK_PATIENTS and update with live data if available
+          const merged = MOCK_PATIENTS.map(mock => {
+            const live = data.find(p => p.id === mock.id);
+            return live 
+              ? { ...mock, firstName: live.firstName ?? mock.firstName, lastName: live.lastName ?? mock.lastName }
+              : mock;
           });
-          setPatients(merged as typeof MOCK_PATIENTS);
+          
+          // Append any live patients that aren't in the mock roster
+          const newLive = data
+            .filter(p => !MOCK_PATIENTS.some(m => m.id === p.id))
+            .map(p => ({
+              ...p, conditions: ['General Care'], risk: 'Stable', lastVisit: new Date().toISOString().split('T')[0], doctor: 'Dr. Vikram Malhotra', age: 70, gender: p.gender || 'Unknown', careCircle: 2 
+            }));
+
+          setPatients([...merged, ...newLive] as typeof MOCK_PATIENTS);
         }
       })
       .catch(() => { /* keep mock data */ });

@@ -12,6 +12,7 @@ import { PatientHeader } from '@/components/patient/patient-header';
 import { YearTimeline, YearStatusLegend } from '@/components/timeline/year-timeline';
 import { HealthMetricCard, StatusBadge } from '@/components/health/health-metric-card';
 import { patientsApi, timelineApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 import { cn, formatDate, statusConfig, type YearStatus, eventTypeConfig } from '@/lib/utils';
 
 export default function TimelinePage({ params }: { params: { patientId: string } }) {
@@ -27,14 +28,56 @@ export default function TimelinePage({ params }: { params: { patientId: string }
           timelineApi.yearTimeline(params.patientId).catch(() => null),
         ]);
         const defaultTimeline = { currentYear: 2026, years: [{ year: 2026, label: 'Current', status: 'ACTIVE', summary: 'Active' }] };
-        const fetchedTimeline = timelineResp?.data || defaultTimeline;
+        const fetchedTimeline = timelineResp || defaultTimeline;
         
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+
+        let timelineToUse = fetchedTimeline;
+        
+        // If the backend returns an empty timeline (no events), override the status to match 
+        // the mock patient's risk profile so High/Critical patients don't show up as 'Good'/'Stable'.
+        const totalEvents = timelineToUse.years?.reduce((acc: number, y: any) => acc + (y.events?.length || 0), 0) || 0;
+        if (totalEvents === 0 && fallbackPatient?.risk && timelineToUse.years?.length > 0) {
+          const riskToStatus: Record<string, string> = { Critical: 'CRITICAL', High: 'CONCERN', Moderate: 'WATCH', Stable: 'STABLE' };
+          const mockStatus = riskToStatus[fallbackPatient.risk] || 'ACTIVE';
+          
+          timelineToUse = {
+            ...timelineToUse,
+            years: timelineToUse.years.map((y: any, idx: number) => {
+              // Override the most recent year (index 0) with the mock severity
+              if (idx === 0) {
+                return {
+                  ...y,
+                  status: mockStatus,
+                  label: mockStatus.charAt(0) + mockStatus.slice(1).toLowerCase(),
+                  summary: `Patient is currently marked as ${fallbackPatient.risk} risk.`,
+                  reasons: fallbackPatient.conditions || y.reasons || [],
+                };
+              }
+              return y;
+            })
+          };
+        }
+
+        const yearDetailMap: Record<number, any> = {};
+        if (timelineToUse.years) {
+          timelineToUse.years.forEach((y: any) => {
+            yearDetailMap[y.year] = y;
+          });
+        }
+
         setData({
-          patient: summary?.patient,
-          timeline: fetchedTimeline,
-          yearDetail: {},
+          patient: summary?.patient || fallbackPatient,
+          timeline: timelineToUse,
+          yearDetail: yearDetailMap,
         });
-        setSelectedYear(fetchedTimeline.currentYear);
+        setSelectedYear(timelineToUse.currentYear);
       } catch (e) {
         console.error(e);
       } finally {

@@ -23,6 +23,7 @@ interface PatientHeaderProps {
     careCircleCount?: number;
     status?: string;
     currentYearStatus?: string;
+    dementiaStage?: string;
   };
 }
 
@@ -112,6 +113,11 @@ export function PatientHeader({ patient }: PatientHeaderProps) {
                     <Badge variant="outline" className="text-xs">
                       {patient.status ?? 'Active'}
                     </Badge>
+                    {patient.dementiaStage && (
+                      <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">
+                        {patient.dementiaStage}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {age} years · {patient.gender ?? 'Unknown'} ·{' '}

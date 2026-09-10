@@ -77,13 +77,13 @@ export default function PatientOverviewPage({ params }: PageProps) {
             currentYearStatus: 'WATCH',
             lastReviewDate: new Date().toISOString(),
           },
-          changes: changesResp?.data ?? null,
+          changes: changesResp ?? null,
           careCircle: careCircle && careCircle.length > 0 ? careCircle : [
             { id: '1', role: 'FAMILY_CAREGIVER', user: { name: 'Karthik Sundaram', role: 'FAMILY_CAREGIVER' } },
             { id: '2', role: 'PRIMARY_CLINICIAN', user: { name: 'Dr. Vikram Malhotra', role: 'CLINICIAN' } }
           ],
-          contradictions: (contradictions?.data || []).filter((c: any) => c.status === 'OPEN'),
-          missingInfo: (missingInfo?.data || []).filter((m: any) => m.status === 'OPEN'),
+          contradictions: (contradictions || []).filter((c: any) => c.status === 'OPEN'),
+          missingInfo: (missingInfo || []).filter((m: any) => m.status === 'OPEN'),
         });
       } catch (e) {
         console.error(e);

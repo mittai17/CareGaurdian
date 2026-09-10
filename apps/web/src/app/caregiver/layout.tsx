@@ -1,104 +1,54 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import {
-  LayoutDashboard,
-  Heart,
-  CheckSquare,
-  Bell,
-  MessageSquare,
-  User,
-  LogOut,
-  Users
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Sidebar } from '@/components/navigation/sidebar';
+import { Search } from 'lucide-react';
 
 export default function CaregiverLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const router = useRouter();
-
-  const navs = [
-    { href: '/caregiver', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-    { href: '/caregiver#patient-overview', label: 'Patient', icon: Heart },
-    { href: '/caregiver#tasks', label: 'Tasks', icon: CheckSquare },
-    { href: '/caregiver#reminders', label: 'Reminders', icon: Bell },
-    { href: '/clinician/messages', label: 'Messages', icon: MessageSquare },
-    { href: '/clinician/settings', label: 'Profile', icon: User },
-  ];
-
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="sticky top-0 z-40 border-b border-border bg-white px-6 h-16 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-6">
-          <Link href="/caregiver" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm">
-              <Users className="h-5 w-5" />
+    <div className="flex h-screen bg-background text-foreground font-sans">
+      <Sidebar />
+      <div className="flex flex-1 flex-col overflow-hidden pl-64">
+        {/* Top bar */}
+        <header className="flex h-16 items-center justify-between border-b border-border bg-white px-6 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-1 max-w-md">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="search"
+                placeholder="Search..."
+                className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+              />
             </div>
-            <div>
-              <span className="font-bold text-base text-foreground tracking-tight">CareGuardian</span>
-              <span className="text-[10px] block text-purple-600 font-semibold uppercase tracking-wider">Family Caregiver Mode</span>
-            </div>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-1 pl-4">
-            {navs.map((item) => {
-              const active = pathname === item.href;
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                    active
-                      ? 'bg-purple-50 text-purple-800 border border-purple-200'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-slate-100'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 border-l pl-3">
+          </div>
+          
+          <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-1.5 text-xs">
               <span className="bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
                 🟢 Identity Verified
               </span>
-              <span className="bg-purple-50 text-purple-700 font-semibold px-2 py-0.5 rounded-full border border-purple-200">
-                🟣 Family Caregiver
+              <span className="bg-primary/10 text-primary font-semibold px-2 py-0.5 rounded-full border border-primary/20">
+                🔵 Family Caregiver
               </span>
             </div>
-            <div className="h-8 w-8 rounded-full bg-purple-100 text-purple-800 font-bold flex items-center justify-center text-xs ml-1">
-              KS
-            </div>
-            <div className="hidden sm:block text-right">
-              <p className="text-xs font-semibold text-foreground leading-tight">Karthik Sundaram</p>
-              <p className="text-[10px] text-muted-foreground">Son of Patient</p>
+
+            <div className="flex items-center gap-2 border-l border-border pl-4">
+              <div
+                title="Karthik Sundaram"
+                className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-sm font-bold border border-primary/30"
+              >
+                KS
+              </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              localStorage.removeItem('baseline_token');
-              router.push('/auth/login');
-            }}
-            className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 ml-2"
-          >
-            <LogOut className="w-3.5 h-3.5 mr-1" />
-            Logout
-          </Button>
-        </div>
-      </header>
+        </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto p-6 md:p-8">
-        {children}
-      </main>
+        {/* Page content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-6xl w-full mx-auto p-6 md:p-8">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

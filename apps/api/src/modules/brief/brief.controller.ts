@@ -36,6 +36,23 @@ export class BriefController {
   }
 
   /**
+   * GET /brief/:id
+   * Returns the AI-generated clinical brief sections.
+   */
+  @Get('brief/:id')
+  @ApiOperation({
+    summary: 'Get AI-generated clinical brief sections',
+    description: 'Generates natural language paragraphs for the clinical brief using AI',
+  })
+  async getAiBrief(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() _user: RequestUser,
+  ) {
+    const brief = await this.briefService.generateAiBrief(id);
+    return { data: brief };
+  }
+
+  /**
    * GET /patients/:id/what-changed
    * Returns a comparison of last 30d vs previous 60d.
    */

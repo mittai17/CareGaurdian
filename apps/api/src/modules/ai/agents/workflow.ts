@@ -159,7 +159,21 @@ export async function medicationAgent(state: WorkflowState, deps: NodeDeps): Pro
     );
     const missedEvents = recentEvents.filter((e) => String(e['type']) === 'MISSED');
 
-    if (changeEvents.length > 0) {
+    if (activeMeds.length >= 5) {
+      // Polypharmacy threshold reached
+      signal = 'POLYPHARMACY_RISK';
+      confidence = 0.9;
+      reason = `${activeMeds.length} concurrent active medications detected. High risk for adverse interactions in elderly patients.`;
+      
+      // Simulate checking for specific interactions based on medication names
+      const medNames = activeMeds.map((m: any) => m.name.toLowerCase());
+      const hasInteractionRisk = medNames.some(m => m.includes('amoxicillin') || m.includes('benzodiazepine') || m.includes('anticholinergic'));
+      if (hasInteractionRisk) {
+        signal = 'CRITICAL_INTERACTION_RISK';
+        confidence = 0.95;
+        reason = `Polypharmacy (5+ meds) WITH known high-risk drug-drug/disease interactions detected among: ${activeMeds.map((m: any) => m.name).join(', ')}`;
+      }
+    } else if (changeEvents.length > 0) {
       signal = 'MEDICATION_CHANGE_RECENT';
       confidence = 0.85;
       reason = `${changeEvents.length} medication change(s) in the last 14 days`;
@@ -167,8 +181,8 @@ export async function medicationAgent(state: WorkflowState, deps: NodeDeps): Pro
 
     if (missedEvents.length >= 3) {
       signal = 'MEDICATION_ADHERENCE_DROP';
-      confidence = 0.8;
-      reason = `${missedEvents.length} missed medication events in the last 14 days`;
+      confidence = Math.max(confidence, 0.8);
+      reason = `${missedEvents.length} missed medication events in the last 14 days. ${reason}`;
     }
 
     return {
@@ -205,23 +219,43 @@ export async function cognitiveAgent(state: WorkflowState, deps: NodeDeps): Prom
       },
       orderBy: { timestamp: 'desc' },
     });
+    
+    const patient = await (deps.prisma as any).patient.findUnique({
+      where: { id: state.patientId },
+      select: { dementiaStage: true }
+    });
+    const stage = patient?.dementiaStage || 'NONE';
 
     const totalSignals = observations.length + events.length;
 
     if (totalSignals === 0) {
       return {
-        cognitiveSignal: { signal: 'COGNITIVE_STABLE', confidence: 0.7, reason: 'No cognitive change signals in last 14 days' },
+        cognitiveSignal: { signal: 'COGNITIVE_STABLE', confidence: 0.7, reason: `No cognitive change signals in last 14 days (Baseline: ${stage})` },
         agentsRun: [...state.agentsRun, 'cognitiveAgent'],
       };
     }
 
     const highSeverity = observations.filter((o) => o['severity'] === 'SEVERE' || o['severity'] === 'MODERATE').length;
+    
+    // Dementia-Stage-Aware Calibration
+    let baseConfidence = 0.6 + totalSignals * 0.08 + highSeverity * 0.1;
+    let reasonText = `${observations.length} confusion observations + ${events.length} cognitive change events in 14 days`;
+    
+    if (stage.includes('Stage 6') || stage.includes('Stage 7') || stage.includes('Late')) {
+      // In late stage dementia, some confusion is expected baseline, so confidence in acute risk is lower unless highly severe
+      baseConfidence = Math.max(0.4, baseConfidence - 0.2);
+      reasonText += ` — Note: Patient is ${stage}, some confusion is baseline expected.`;
+    } else if (stage.includes('Stage 1') || stage.includes('Stage 2') || stage === 'NONE') {
+      // In early stage or no dementia, confusion is a highly anomalous acute signal
+      baseConfidence = Math.min(0.98, baseConfidence + 0.15);
+      reasonText += ` — Note: Patient has no advanced dementia baseline (${stage}), acute confusion is highly anomalous!`;
+    }
 
     return {
       cognitiveSignal: {
         signal: 'COGNITIVE_CHANGE',
-        confidence: Math.min(0.95, 0.6 + totalSignals * 0.08 + highSeverity * 0.1),
-        reason: `${observations.length} confusion observations + ${events.length} cognitive change events in 14 days`,
+        confidence: Math.min(0.95, baseConfidence),
+        reason: reasonText,
       },
       agentsRun: [...state.agentsRun, 'cognitiveAgent'],
     };

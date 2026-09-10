@@ -5,7 +5,8 @@ import { Clock, User } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { patientsApi } from '@/lib/api';
+import { patientsApi, observationsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 import { cn, formatDate, timeAgo } from '@/lib/utils';
 
 const categoryIcons: Record<string, string> = {
@@ -26,10 +27,35 @@ export default function ObservationsPage({ params }: { params: { patientId: stri
   useEffect(() => {
     async function loadData() {
       try {
-        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        const [summary, obsResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          observationsApi.list(params.patientId).catch(() => []),
+        ]);
+
+        // Normalise API response → UI shape
+        const rawObs: any[] = Array.isArray(obsResp) ? obsResp : (obsResp as any)?.observations ?? [];
+        const reports = rawObs.map((o: any) => ({
+          id: o.id,
+          reporter: o.reportedBy?.name ?? o.user?.name ?? (o.sourceType === 'CLINICIAN' ? 'Clinician' : o.sourceType === 'PATIENT' ? 'Patient' : 'Care Team'),
+          relationship: o.reportedBy?.role ?? (o.sourceType === 'CLINICIAN' ? 'Clinical Staff' : o.sourceType === 'PATIENT' ? 'Patient (Self)' : 'Caregiver'),
+          avatar: (o.reportedBy?.name ?? o.user?.name ?? o.sourceType ?? 'C')[0].toUpperCase(),
+          text: o.rawText ?? o.text ?? '',
+          date: o.occurredAt ?? o.observedAt ?? o.createdAt ?? new Date().toISOString(),
+          category: o.category ?? 'OTHER',
+          status: o.verificationStatus ?? o.status ?? 'REPORTED',
+        }));
+
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+
         setData({
-          patient: summary?.patient,
-          reports: [],
+          patient: summary?.patient || fallbackPatient,
+          reports,
         });
       } catch (e) {
         console.error(e);

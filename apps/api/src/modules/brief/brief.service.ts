@@ -6,6 +6,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AIGatewayService } from '@baseline/ai';
 
 export interface ClinicalBriefResult {
   patientId: string;
@@ -55,8 +56,44 @@ export interface WhatChangedResult {
 @Injectable()
 export class BriefService {
   private readonly logger = new Logger(BriefService.name);
+  private readonly gateway: AIGatewayService;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    this.gateway = new AIGatewayService();
+  }
+
+  /**
+   * Generate an AI-powered Clinical Brief with natural language sections.
+   */
+  async generateAiBrief(patientId: string) {
+    const data = await this.build(patientId);
+    
+    let generatedSections;
+    try {
+      generatedSections = await this.gateway.generateClinicalBrief(data);
+    } catch (err) {
+      this.logger.error(`Failed to generate AI brief for ${patientId}: ${err instanceof Error ? err.message : String(err)}`);
+      // Fallback if LLM fails
+      generatedSections = {
+        sections: {
+          currentChanges: data.whyNow.join('; '),
+          relevantHistory: "AI summarization failed. See raw data.",
+          careCircleObservations: data.evidence.join('; '),
+          medicationContext: "AI summarization failed.",
+          cognitiveChanges: "AI summarization failed.",
+          functionalChanges: "AI summarization failed.",
+          historicalEpisodeMatch: "AI summarization failed.",
+          suggestedAreasForClinicalReview: ["Review raw evidence logs manually"]
+        }
+      };
+    }
+
+    return {
+      _disclaimer: "This clinical brief is AI-generated from raw health signals, observations, and system data. It is intended to assist clinical review but does not constitute a diagnosis or medical advice. All findings must be independently verified.",
+      generatedAt: new Date().toISOString(),
+      ...generatedSections
+    };
+  }
 
   /**
    * Build a ClinicalBrief for a patient.
