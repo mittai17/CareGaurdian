@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { useAuth } from '@/context/auth-context';
+
 const navItems = [
   { href: '/clinician', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/clinician/patients', icon: Users, label: 'Patients' },
@@ -27,21 +29,21 @@ const bottomItems = [
   { href: '/help', icon: HelpCircle, label: 'Help & Support' },
 ];
 
-import { useAuth } from '@/context/auth-context';
-
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
 
   const displayName = user?.name || 'Dr. Vikram Malhotra';
-  const displayRole = user?.roles?.[0] ? user.roles[0].replace('_', ' ') : 'Internal Medicine';
+  const displayRole = user?.roles?.[0]
+    ? user.roles[0].replace('_', ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+    : 'Attending Physician';
   const initials = displayName
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
-    .map((n) => n[0]?.toUpperCase())
-    .join('') || 'DR';
+    .map((p) => p[0].toUpperCase())
+    .join('');
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
@@ -56,20 +58,20 @@ export function Sidebar() {
           <Shield className="h-4 w-4 text-white" />
         </div>
         <div>
-          <span className="text-base font-bold text-foreground tracking-tight">Baseline</span>
-          <p className="text-[10px] text-muted-foreground leading-none">Health Memory Platform</p>
+          <span className="text-base font-bold text-foreground tracking-tight">CareGuardian</span>
+          <p className="text-[10px] text-muted-foreground leading-none">Elderly Care & Health Memory</p>
         </div>
       </div>
 
-      {/* Doctor info */}
+      {/* Doctor / User info */}
       <div className="border-b border-border px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
-            {initials}
+            {initials || 'CG'}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{displayName}</p>
-            <p className="text-xs text-muted-foreground truncate capitalize">{displayRole.toLowerCase()}</p>
+            <p className="text-xs text-muted-foreground truncate">{displayRole}</p>
           </div>
           <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
             <span className="sr-only">Online</span>
@@ -122,7 +124,9 @@ export function Sidebar() {
           </Link>
         ))}
         <button
-          onClick={logout}
+          onClick={() => {
+            logout();
+          }}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors text-left"
         >
           <LogOut className="h-4 w-4 flex-shrink-0" />

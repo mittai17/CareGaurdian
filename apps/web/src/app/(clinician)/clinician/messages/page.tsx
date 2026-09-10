@@ -35,7 +35,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { messagesApi } from '@/lib/api';
 import { TelehealthModal } from '@/components/telehealth/telehealth-modal';
-import { useAuth } from '@/context/auth-context';
 
 export interface ChatUser {
   id: string;
@@ -398,18 +397,14 @@ export default function ClinicianMessagesPage() {
     return conversations.find((c) => c.id === activeConvId) || conversations[0];
   }, [conversations, activeConvId]);
 
-  const { user } = useAuth();
-  const currentSenderName = user?.name || 'Dr. Vikram Malhotra';
-  const currentSenderHandle = user?.handle || (user?.email ? `@${user.email.split('@')[0]}` : '@dr_vikram_malhotra');
-
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || !activeConversation) return;
 
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
-      senderHandle: currentSenderHandle,
-      senderName: currentSenderName,
+      senderHandle: '@dr_priya_sharma',
+      senderName: 'Dr. Priya Sharma',
       text: inputText.trim(),
       timestamp: 'Just now',
       isSelf: true,

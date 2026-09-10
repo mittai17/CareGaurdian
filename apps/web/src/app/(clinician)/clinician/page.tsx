@@ -70,7 +70,7 @@ export default function ClinicianDashboard() {
             </span>
           </div>
           <p className="text-muted-foreground mt-1 text-sm">
-            {doctorName} • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {doctorName}, MD • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
 

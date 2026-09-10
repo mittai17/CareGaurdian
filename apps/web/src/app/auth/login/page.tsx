@@ -123,10 +123,9 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Quick Demo Role Selector */}
-            <div className="mt-6 pt-4 border-t border-slate-100">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-center">
-                Quick Demo Accounts
+            <div className="mt-6 pt-5 border-t border-border space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider text-center">
+                Quick Role Switcher
               </p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <button
@@ -135,10 +134,10 @@ export default function LoginPage() {
                     setEmail('dr.vikram.malhotra@careguardian.health');
                     setPassword('CareSafe2026!');
                   }}
-                  className="p-2 rounded-lg border border-slate-200 hover:border-primary/50 hover:bg-slate-50 text-left transition-colors"
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
                 >
-                  <span className="font-semibold block text-slate-800">Dr. Vikram</span>
-                  <span className="text-[10px] text-muted-foreground">Doctor (/clinician)</span>
+                  <p className="font-semibold text-foreground">Dr. Vikram Malhotra</p>
+                  <p className="text-[10px] text-muted-foreground">Doctor / Clinician</p>
                 </button>
                 <button
                   type="button"
@@ -146,10 +145,10 @@ export default function LoginPage() {
                     setEmail('dr.priya.sharma@careguardian.health');
                     setPassword('CareSafe2026!');
                   }}
-                  className="p-2 rounded-lg border border-slate-200 hover:border-primary/50 hover:bg-slate-50 text-left transition-colors"
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
                 >
-                  <span className="font-semibold block text-slate-800">Dr. Priya</span>
-                  <span className="text-[10px] text-muted-foreground">Doctor (/clinician)</span>
+                  <p className="font-semibold text-foreground">Dr. Priya Sharma</p>
+                  <p className="text-[10px] text-muted-foreground">Doctor / Clinician</p>
                 </button>
                 <button
                   type="button"
@@ -157,10 +156,10 @@ export default function LoginPage() {
                     setEmail('karthik.sundaram@careguardian.health');
                     setPassword('CareSafe2026!');
                   }}
-                  className="p-2 rounded-lg border border-slate-200 hover:border-primary/50 hover:bg-slate-50 text-left transition-colors"
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
                 >
-                  <span className="font-semibold block text-slate-800">Karthik</span>
-                  <span className="text-[10px] text-muted-foreground">Caregiver (/caregiver)</span>
+                  <p className="font-semibold text-foreground">Karthik Sundaram</p>
+                  <p className="text-[10px] text-muted-foreground">Family Caregiver</p>
                 </button>
                 <button
                   type="button"
@@ -168,15 +167,15 @@ export default function LoginPage() {
                     setEmail('devaki.sundaram@careguardian.health');
                     setPassword('CareSafe2026!');
                   }}
-                  className="p-2 rounded-lg border border-slate-200 hover:border-primary/50 hover:bg-slate-50 text-left transition-colors"
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
                 >
-                  <span className="font-semibold block text-slate-800">Devaki</span>
-                  <span className="text-[10px] text-muted-foreground">Patient (/patient)</span>
+                  <p className="font-semibold text-foreground">Devaki Sundaram</p>
+                  <p className="text-[10px] text-muted-foreground">Patient (Elderly)</p>
                 </button>
               </div>
             </div>
 
-            <p className="mt-6 text-center text-sm text-muted-foreground">
+            <p className="mt-4 text-center text-sm text-muted-foreground">
               Don&apos;t have an account?{' '}
               <Link href="/auth/signup" className="text-primary hover:underline font-medium">Sign up</Link>
             </p>
