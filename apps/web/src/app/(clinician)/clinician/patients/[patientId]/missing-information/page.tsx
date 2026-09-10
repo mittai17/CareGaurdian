@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import { Info, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoMissingInfo, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi, missingInfoApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
-
-export const metadata: Metadata = { title: 'Information Gaps' };
 
 const severityConfig: Record<string, { label: string; color: string }> = {
   REVIEW: { label: 'Needs Review', color: 'border-yellow-200 text-yellow-700 bg-yellow-50' },
@@ -14,20 +14,51 @@ const severityConfig: Record<string, { label: string; color: string }> = {
   CRITICAL: { label: 'Critical', color: 'border-red-200 text-red-700 bg-red-50' },
 };
 
-export default function MissingInfoPage() {
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
-  };
+export default function MissingInfoPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const gaps = demoMissingInfo;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, missingResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          missingInfoApi.list(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          gaps: missingResp?.data || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading missing information...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, gaps } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+  };
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-5 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold">Information Gaps</h1>
@@ -39,7 +70,7 @@ export default function MissingInfoPage() {
         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 flex items-start gap-3">
           <Info className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-yellow-800">{gaps.filter(g => g.status === 'OPEN').length} Open Gaps Identified</p>
+            <p className="text-sm font-semibold text-yellow-800">{gaps.filter((g: any) => g.status === 'OPEN').length} Open Gaps Identified</p>
             <p className="text-sm text-yellow-700 mt-1">
               These gaps may affect the completeness of AI analysis and clinical decision-making.
               Each gap can be reviewed, dismissed, or actioned.
@@ -48,7 +79,7 @@ export default function MissingInfoPage() {
         </div>
 
         <div className="space-y-3">
-          {gaps.map((gap) => {
+          {gaps.map((gap: any) => {
             const sev = severityConfig[gap.severity] ?? severityConfig.ATTENTION;
             return (
               <Card key={gap.id} className="card-hover">

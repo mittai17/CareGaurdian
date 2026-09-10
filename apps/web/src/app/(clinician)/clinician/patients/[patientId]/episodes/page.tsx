@@ -1,14 +1,14 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle, Info, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoEpisodes, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 import Link from 'next/link';
-
-export const metadata: Metadata = { title: 'Episode Comparison' };
 
 const similarityColor = (score: number) => {
   if (score >= 0.8) return 'text-red-700 bg-red-50 border-red-200';
@@ -17,15 +17,44 @@ const similarityColor = (score: number) => {
 };
 
 export default function EpisodesPage({ params }: { params: { patientId: string } }) {
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        setData({
+          patient: summary?.patient,
+          episodes: [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading episodes...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, episodes } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
   };
 
-  const episodes = demoEpisodes;
   const currentPattern = [
     { event: 'Medication changed (Metformin dose doubled)', date: '2026-09-02' },
     { event: 'Appetite reduced', date: '2026-09-06' },
@@ -35,7 +64,7 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold">Historical Episode Comparison</h1>
@@ -72,7 +101,7 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
         {/* Past episodes */}
         <h2 className="text-lg font-semibold">Previous Episodes</h2>
         <div className="space-y-5">
-          {episodes.map((ep) => (
+          {episodes.map((ep: any) => (
             <Card key={ep.id} className="card-hover">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
@@ -97,7 +126,7 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Episode Pattern</p>
                     <div className="relative pl-4">
                       <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gray-200" />
-                      {ep.pattern.map((step, i) => {
+                      {ep.pattern.map((step: any, i: number) => {
                         const isShared = currentPattern.some(cp =>
                           cp.event.toLowerCase().split(' ').some(word => word.length > 4 && step.event.toLowerCase().includes(word))
                         );

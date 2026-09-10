@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import { Clock, User } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoYearDetail, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi } from '@/lib/api';
 import { cn, formatDate, timeAgo } from '@/lib/utils';
-
-export const metadata: Metadata = { title: 'Observations' };
 
 const categoryIcons: Record<string, string> = {
   CONFUSION: '🧠', FALL: '⚠️', NEAR_FALL: '⚠️', APPETITE: '🍽️',
@@ -19,20 +19,48 @@ const statusStyle: Record<string, string> = {
   CLINICALLY_VERIFIED: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
-export default function ObservationsPage() {
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
-  };
+export default function ObservationsPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const reports = demoYearDetail[2026]?.careCircleReports || [];
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        setData({
+          patient: summary?.patient,
+          reports: [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading observations...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, reports } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+  };
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-5 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold">Observations</h1>
@@ -41,7 +69,7 @@ export default function ObservationsPage() {
           </p>
         </div>
         <div className="space-y-3">
-          {reports.map((r) => {
+          {reports.map((r: any) => {
             const icon = categoryIcons[r.category] ?? '💬';
             const stStyle = statusStyle[r.status] ?? statusStyle.REPORTED;
             return (

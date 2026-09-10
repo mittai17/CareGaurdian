@@ -1,12 +1,10 @@
-import * as path from 'path';
-// Load env from monorepo root so DATABASE_URL is available
-require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
+#!/usr/bin/env python3
+"""Writes the comprehensive CareGuardian seed.ts file."""
 
-import * as bcrypt from 'bcrypt';
+seed = r'''import * as bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-
 const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (d: number) => new Date(Date.now() - d * DAY);
 const dateOf = (s: string) => new Date(s);
@@ -286,3 +284,8 @@ async function main() {
 }
 
 main().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{await prisma.$disconnect();});
+'''
+
+with open('apps/api/prisma/seed.ts', 'w', encoding='utf-8') as f:
+    f.write(seed)
+print('Written:', len(seed.splitlines()), 'lines')

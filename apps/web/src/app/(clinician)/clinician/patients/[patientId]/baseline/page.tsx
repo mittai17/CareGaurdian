@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import { TrendingDown, TrendingUp, Info, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoBaseline, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi, baselineApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-
-export const metadata: Metadata = { title: 'Personal Baseline' };
 
 const confidenceConfig: Record<string, { label: string; color: string }> = {
   HIGH: { label: 'High confidence', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
@@ -15,20 +15,52 @@ const confidenceConfig: Record<string, { label: string; color: string }> = {
   INSUFFICIENT_DATA: { label: 'Insufficient data', color: 'text-gray-600 bg-gray-50 border-gray-200' },
 };
 
-export default function BaselinePage() {
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
-  };
+export default function BaselinePage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const baseline = demoBaseline;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, baselineResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          baselineApi.get(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          baseline: baselineResp?.data || null,
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading baseline...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, baseline } = data;
+  const currentYearStatus = 'ACTIVE';
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Assigned Clinician',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: currentYearStatus,
+  };
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold">Personal Baseline</h1>
@@ -48,13 +80,13 @@ export default function BaselinePage() {
             If there is insufficient data, the system will say so — it will never fabricate a baseline.
           </p>
           <p className="text-xs text-blue-600 mt-2">
-            Baseline period: Previous 90 days · Computed: {new Date(baseline.computedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+            Baseline period: Previous 90 days · Computed: {new Date(baseline?.computedAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
 
         {/* Metrics */}
         <div className="space-y-4">
-          {baseline.metrics.map((metric) => {
+          {(baseline?.metrics || []).map((metric: any) => {
             const confCfg = confidenceConfig[metric.confidence] ?? confidenceConfig.INSUFFICIENT_DATA;
             const isInsufficientData = metric.confidence === 'INSUFFICIENT_DATA';
             const hasMeaningfulChange = metric.change !== null && Math.abs(metric.change) >= 10;

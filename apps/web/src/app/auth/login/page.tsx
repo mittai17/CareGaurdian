@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('demo@baseline.health');
-  const [password, setPassword] = useState('demo1234');
+  const [email, setEmail] = useState('dr.arjun.nair@careguardian.health');
+  const [password, setPassword] = useState('CareSafe2026!');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,9 +36,9 @@ export default function LoginPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-6">
-              <p className="text-sm text-blue-700 font-medium">🔬 Demo Credentials</p>
-              <p className="text-xs text-blue-600 mt-0.5">Email: demo@baseline.health · Password: demo1234</p>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 mb-6">
+              <p className="text-sm text-emerald-700 font-medium">🏥 CareGuardian — Clinician Portal</p>
+              <p className="text-xs text-emerald-600 mt-0.5">Sign in with your @careguardian.health credentials · Password: CareSafe2026!</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

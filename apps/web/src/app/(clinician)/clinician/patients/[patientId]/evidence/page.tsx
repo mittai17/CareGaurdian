@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, PlusCircle, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoWhatChanged, demoCareCircle, demoYearDetail, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi } from '@/lib/api';
 import { cn, formatDate, timeAgo } from '@/lib/utils';
 
 const evidenceItems = [
@@ -17,8 +17,8 @@ const evidenceItems = [
     strength: 'Strong',
     sourceType: 'CARE_CIRCLE',
     items: [
-      { source: 'Ananya Kumar (Daughter)', date: '2026-09-10', text: 'Dad forgot his evening medicine yesterday.', status: 'REPORTED' },
-      { source: 'Latha Reddy (Caregiver)', date: '2026-09-07', text: 'Morning medication was still in the pill box when I arrived.', status: 'REPORTED' },
+      { source: 'Sarah Miller (Daughter)', date: '2026-09-10', text: 'Dad forgot his evening medicine yesterday.', status: 'REPORTED' },
+      { source: 'Maria Pelletier (Caregiver)', date: '2026-09-07', text: 'Morning medication was still in the pill box when I arrived.', status: 'REPORTED' },
       { source: 'Medication Log', date: '2026-09-10', text: '72% adherence rate (past 14 days)', status: 'MEASURED' },
     ],
   },
@@ -40,8 +40,8 @@ const evidenceItems = [
     strength: 'Moderate',
     sourceType: 'CARE_CIRCLE',
     items: [
-      { source: 'Ananya Kumar (Daughter)', date: '2026-09-10', text: 'He seemed confused about what day it was.', status: 'REPORTED' },
-      { source: 'Suresh Kumar (Son)', date: '2026-09-08', text: 'He repeated the same question about my work three times in 10 minutes.', status: 'REPORTED' },
+      { source: 'Sarah Miller (Daughter)', date: '2026-09-10', text: 'He seemed confused about what day it was.', status: 'REPORTED' },
+      { source: 'David Miller (Son)', date: '2026-09-08', text: 'He repeated the same question about my work three times in 10 minutes.', status: 'REPORTED' },
       { source: 'Rahul Mehta (Friend)', date: '2026-09-09', text: 'He seemed more confused than usual.', status: 'REPORTED' },
     ],
   },
@@ -71,13 +71,42 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 
 export default function EvidencePage({ params }: { params: { patientId: string } }) {
   const [feedbackMap, setFeedbackMap] = useState<Record<string, string>>({});
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        setData({
+          patient: summary?.patient,
+          evidence: evidenceItems,
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading evidence...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, evidence } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
   };
 
   const setFeedback = (id: string, verdict: string) => {
@@ -86,7 +115,7 @@ export default function EvidencePage({ params }: { params: { patientId: string }
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold">Evidence Explorer</h1>
@@ -104,7 +133,7 @@ export default function EvidencePage({ params }: { params: { patientId: string }
         </div>
 
         <div className="space-y-5">
-          {evidenceItems.map((ev) => {
+          {evidence.map((ev: any) => {
             const strCfg = strengthConfig[ev.strength] ?? strengthConfig.Moderate;
             const feedback = feedbackMap[ev.id];
             return (
@@ -135,7 +164,7 @@ export default function EvidencePage({ params }: { params: { patientId: string }
                     Evidence ({ev.items.length} item{ev.items.length > 1 ? 's' : ''})
                   </p>
                   <div className="space-y-3">
-                    {ev.items.map((item, i) => {
+                    {ev.items.map((item: any, i: number) => {
                       const stCfg = statusConfig[item.status] ?? statusConfig.REPORTED;
                       return (
                         <div key={i} className="rounded-lg border border-border bg-background p-3">

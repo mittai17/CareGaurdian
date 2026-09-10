@@ -1,13 +1,13 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import { AlertTriangle, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoContradictions, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi, contradictionsApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
-
-export const metadata: Metadata = { title: 'Record Conflicts' };
 
 const severityConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   CRITICAL: { label: 'Critical', icon: AlertCircle, color: 'border-red-200 bg-red-50' },
@@ -15,20 +15,53 @@ const severityConfig: Record<string, { label: string; icon: React.ElementType; c
   ATTENTION: { label: 'Attention', icon: Info, color: 'border-blue-200 bg-blue-50' },
 };
 
-export default function ContradictionsPage() {
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
+export default function ContradictionsPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, contradictionsResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          contradictionsApi.list(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          contradictions: contradictionsResp?.data || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading record conflicts...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, contradictions } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
   };
 
-  const contradictions = demoContradictions;
+  const openContradictions = contradictions.filter((c: any) => c.status === 'OPEN');
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-5 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold">Record Conflicts</h1>
@@ -40,7 +73,7 @@ export default function ContradictionsPage() {
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-800">{contradictions.length} Open Conflict{contradictions.length > 1 ? 's' : ''}</p>
+            <p className="text-sm font-semibold text-red-800">{openContradictions.length} Open Conflict{openContradictions.length !== 1 ? 's' : ''}</p>
             <p className="text-sm text-red-700 mt-1">
               Conflicts are never silently resolved. Each requires explicit clinician review.
             </p>
@@ -48,7 +81,7 @@ export default function ContradictionsPage() {
         </div>
 
         <div className="space-y-4">
-          {contradictions.map((c) => {
+          {contradictions.map((c: any) => {
             const sevCfg = severityConfig[c.severity] ?? severityConfig.REVIEW;
             const SevIcon = sevCfg.icon;
             return (

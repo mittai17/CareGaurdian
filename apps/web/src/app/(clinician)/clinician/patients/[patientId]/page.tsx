@@ -1,4 +1,6 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   TrendingDown, TrendingUp, AlertTriangle, Users, ArrowRight,
@@ -9,30 +11,55 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PatientHeader } from '@/components/patient/patient-header';
 import { HealthMetricCard } from '@/components/health/health-metric-card';
-import {
-  demoPatient, demoWhatChanged, demoCareCircle, demoYearTimeline,
-  demoContradictions, demoMissingInfo, DEMO_PATIENT_ID,
-} from '@/lib/demo-data';
-import { cn, formatDate, timeAgo } from '@/lib/utils';
+import { patientsApi, changesApi, careCircleApi, contradictionsApi, missingInfoApi } from '@/lib/api';
+import { cn, getAge } from '@/lib/utils';
 
 interface PageProps {
   params: { patientId: string };
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const isDemo = params.patientId === DEMO_PATIENT_ID;
-  if (isDemo) return { title: 'Ravi Kumar — Overview' };
-  return { title: 'Patient Overview' };
-}
-
 export default function PatientOverviewPage({ params }: PageProps) {
-  const patient = demoPatient; // In production: fetch by params.patientId
-  const changes = demoWhatChanged;
-  const careCircle = demoCareCircle;
-  const timeline = demoYearTimeline;
-  const currentYear = timeline.years.find((y) => y.year === timeline.currentYear);
-  const contradictions = demoContradictions.filter((c) => c.status === 'OPEN');
-  const missingInfo = demoMissingInfo.filter((m) => m.status === 'OPEN');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [
+          summary,
+          changesResp,
+          careCircle,
+          contradictions,
+          missingInfo
+        ] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          changesApi.whatChanged(params.patientId).catch(() => null),
+          careCircleApi.list(params.patientId).catch(() => []),
+          contradictionsApi.list(params.patientId).catch(() => []),
+          missingInfoApi.list(params.patientId).catch(() => []),
+        ]);
+
+        setData({
+          patient: summary?.patient,
+          summary: summary?.summary,
+          changes: changesResp?.data ?? null,
+          careCircle: careCircle || [],
+          contradictions: (contradictions?.data || []).filter((c: any) => c.status === 'OPEN'),
+          missingInfo: (missingInfo?.data || []).filter((m: any) => m.status === 'OPEN'),
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading patient data...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, summary, careCircle, contradictions, missingInfo, changes } = data;
 
   const patientData = {
     id: patient.id,
@@ -40,11 +67,11 @@ export default function PatientOverviewPage({ params }: PageProps) {
     lastName: patient.lastName,
     dateOfBirth: patient.dateOfBirth,
     gender: patient.gender,
-    primaryDoctor: patient.primaryDoctor,
-    lastClinicalReview: patient.lastClinicalReview,
-    careCircleCount: patient.careCircleCount,
-    status: patient.status,
-    currentYearStatus: currentYear?.status,
+    primaryDoctor: summary?.primaryDoctor || 'Assigned Clinician',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: careCircle.length,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
   };
 
   const basePath = `/clinician/patients/${patient.id}`;
@@ -53,15 +80,6 @@ export default function PatientOverviewPage({ params }: PageProps) {
     <>
       <PatientHeader patient={patientData} />
       <div className="p-6 space-y-6 animate-fade-in">
-        {/* Demo banner */}
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 flex items-center gap-3">
-          <span className="text-blue-600 text-xs font-semibold uppercase tracking-wide">🔬 Synthetic Demo</span>
-          <p className="text-blue-700 text-sm">
-            {patient._disclaimer} —{' '}
-            <Link href={`${basePath}/clinical-brief`} className="underline font-medium">Generate Clinical Brief →</Link>
-          </p>
-        </div>
-
         {/* Current Status section */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -137,13 +155,13 @@ export default function PatientOverviewPage({ params }: PageProps) {
               </div>
 
               <div className="space-y-2">
-                {changes.changes.map((change, i) => (
+                {changes?.changes?.map((change: any) => (
                   <div
                     key={change.id}
                     className="flex items-start gap-4 rounded-xl border bg-card p-4 card-hover"
                   >
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 flex-shrink-0 text-base">
-                      {change.icon}
+                      {change.icon || '📊'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
@@ -158,12 +176,9 @@ export default function PatientOverviewPage({ params }: PageProps) {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{change.detail}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {change.evidenceCount} supporting evidence item{change.evidenceCount !== 1 ? 's' : ''}
-                      </p>
                     </div>
                   </div>
-                ))}
+                )) || <p className="text-sm text-muted-foreground">No significant changes detected.</p>}
               </div>
             </div>
 
@@ -177,7 +192,7 @@ export default function PatientOverviewPage({ params }: PageProps) {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {changes.whyNow.map((reason, i) => (
+                  {changes.whyNow.map((reason: string, i: number) => (
                     <li key={i} className="flex items-start gap-2.5 text-sm">
                       <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
                       {reason}
@@ -199,7 +214,6 @@ export default function PatientOverviewPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {/* Timeline quick preview */}
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -213,24 +227,10 @@ export default function PatientOverviewPage({ params }: PageProps) {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-1 overflow-x-auto pb-2">
-                  {timeline.years.map((y) => {
-                    const colorMap: Record<string, string> = {
-                      GOOD: '#10b981', STABLE: '#84cc16', WATCH: '#eab308', CONCERN: '#f97316', CRITICAL: '#ef4444',
-                    };
-                    const emoji: Record<string, string> = {
-                      GOOD: '🟢', STABLE: '🟢', WATCH: '🟡', CONCERN: '🟠', CRITICAL: '🔴',
-                    };
-                    const isCurrentYear = y.year === timeline.currentYear;
-                    return (
-                      <Link key={y.year} href={`${basePath}/timeline`} className="flex flex-col items-center gap-1 px-2 flex-shrink-0 group">
-                        <span className="text-base">{emoji[y.status]}</span>
-                        <span className={cn('text-xs font-semibold', isCurrentYear ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground transition-colors')}>{y.year}</span>
-                        <span className="text-[10px] text-muted-foreground">{y.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
+                <p className="text-sm text-muted-foreground">View the full health timeline for this patient.</p>
+                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                  <Link href={`${basePath}/timeline`}>Open Timeline</Link>
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -251,14 +251,14 @@ export default function PatientOverviewPage({ params }: PageProps) {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {careCircle.slice(0, 4).map((member) => (
-                  <div key={member.id} className="flex items-center gap-3">
+                {careCircle.slice(0, 4).map((member: any) => (
+                  <div key={member.userId} className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
-                      {member.initials}
+                      {member.name[0]}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">{member.relationship}</p>
+                      <p className="text-xs text-muted-foreground">{member.relationshipType}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">{member.observationCount} obs.</p>
@@ -266,7 +266,7 @@ export default function PatientOverviewPage({ params }: PageProps) {
                   </div>
                 ))}
                 <Link href={`${basePath}/care-circle`} className="flex items-center gap-1 text-xs text-primary hover:underline mt-2">
-                  +{careCircle.length - 4} more members <ArrowRight className="h-3 w-3" />
+                  View full care circle <ArrowRight className="h-3 w-3" />
                 </Link>
               </CardContent>
             </Card>
@@ -281,7 +281,7 @@ export default function PatientOverviewPage({ params }: PageProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {contradictions.map((c) => (
+                  {contradictions.map((c: any) => (
                     <div key={c.id} className="rounded-lg bg-red-50 border border-red-100 p-3">
                       <p className="text-xs font-medium text-red-800">{c.type.replace(/_/g, ' ')}</p>
                       <p className="text-xs text-red-700 mt-0.5 line-clamp-2">{c.description}</p>
@@ -305,7 +305,7 @@ export default function PatientOverviewPage({ params }: PageProps) {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-1">
-                    {missingInfo.slice(0, 3).map((m) => (
+                    {missingInfo.slice(0, 3).map((m: any) => (
                       <li key={m.id} className="text-xs text-yellow-800 flex items-start gap-1.5">
                         <span className="mt-1 h-1 w-1 rounded-full bg-yellow-600 flex-shrink-0" />
                         {m.description}

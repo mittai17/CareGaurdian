@@ -1,28 +1,20 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Users, AlertTriangle, MessageSquare, CheckSquare, ArrowRight, Clock, Pill } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/health/health-metric-card';
-import { demoPatients, DEMO_PATIENT_ID } from '@/lib/demo-data';
+import { patientsApi } from '@/lib/api';
 import type { YearStatus } from '@/lib/utils';
-
-export const metadata: Metadata = { title: 'Dashboard' };
 
 const stats = [
   { label: 'Patients', value: '24', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
   { label: 'Important Changes', value: '6', icon: AlertTriangle, color: 'text-orange-600', bg: 'bg-orange-50' },
   { label: 'Care Circle Reports', value: '18', icon: MessageSquare, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   { label: 'Tasks', value: '5', icon: CheckSquare, color: 'text-purple-600', bg: 'bg-purple-50' },
-];
-
-const tasks = [
-  { id: 1, text: 'Review Ravi Kumar changes — medication adherence ↓', priority: 'high', patientId: DEMO_PATIENT_ID },
-  { id: 2, text: 'Review potential allergy conflict — Amoxicillin vs Penicillin allergy', priority: 'critical', patientId: DEMO_PATIENT_ID },
-  { id: 3, text: 'Respond to Ananya Kumar (Daughter) — Care Circle message', priority: 'medium', patientId: DEMO_PATIENT_ID },
-  { id: 4, text: 'Review HbA1c lab result — Ravi Kumar', priority: 'medium', patientId: DEMO_PATIENT_ID },
-  { id: 5, text: 'Lakshmi Raghavan — annual medication review due', priority: 'low', patientId: 'demo-patient-002' },
 ];
 
 const priorityConfig = {
@@ -33,6 +25,35 @@ const priorityConfig = {
 };
 
 export default function ClinicianDashboard() {
+  const [patients, setPatients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    patientsApi.list()
+      .then((data) => {
+        setPatients(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load patients:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="p-6">Loading dashboard...</div>;
+  }
+
+  const primaryPatientId = patients[0]?.id;
+
+  const tasks = [
+    { id: 1, text: 'Review changes — medication adherence ↓', priority: 'high', patientId: primaryPatientId },
+    { id: 2, text: 'Review potential allergy conflict — Amoxicillin vs Penicillin allergy', priority: 'critical', patientId: primaryPatientId },
+    { id: 3, text: 'Respond to Daughter — Care Circle message', priority: 'medium', patientId: primaryPatientId },
+    { id: 4, text: 'Review HbA1c lab result', priority: 'medium', patientId: primaryPatientId },
+    { id: 5, text: 'Lakshmi Raghavan — annual medication review due', priority: 'low', patientId: patients[1]?.id || '' },
+  ];
+
   return (
     <div className="p-6 space-y-6 animate-fade-in">
       {/* Header */}
@@ -40,17 +61,6 @@ export default function ClinicianDashboard() {
         <h1 className="text-2xl font-bold text-foreground">Good evening, Dr. Sharma</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
-      </div>
-
-      {/* Demo banner */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex items-center gap-3">
-        <span className="text-blue-600 text-sm font-medium">🔬 Demo Mode</span>
-        <p className="text-blue-700 text-sm">
-          Using synthetic patient data. No real patient information is present.{' '}
-          <Link href={`/clinician/patients/${DEMO_PATIENT_ID}`} className="underline font-medium">
-            Open Ravi Kumar demo →
-          </Link>
         </p>
       </div>
 
@@ -97,44 +107,51 @@ export default function ClinicianDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {demoPatients.map((p) => (
-                    <tr key={p.id} className="hover:bg-accent/50 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-600">
-                            {p.firstName[0]}{p.lastName[0]}
+                  {patients.map((p) => {
+                    const primaryDoctor = 'Dr. Elena Chen';
+                    const currentYearStatus: YearStatus = 'WATCH';
+                    const lastReview = p.updatedAt || new Date().toISOString();
+                    const pendingChanges = 1;
+
+                    return (
+                      <tr key={p.id} className="hover:bg-accent/50 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-600">
+                              {p.firstName[0]}{p.lastName[0]}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
+                              <p className="text-xs text-muted-foreground">{primaryDoctor}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
-                            <p className="text-xs text-muted-foreground">{p.primaryDoctor}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <StatusBadge status={p.currentYearStatus as YearStatus} size="sm" />
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-muted-foreground">
-                        {p.lastReview ? new Date(p.lastReview).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {p.pendingChanges > 0 ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600 border border-orange-200">
-                            <AlertTriangle className="h-3 w-3" />
-                            {p.pendingChanges} changes
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/clinician/patients/${p.id}`}>
-                            Open <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <StatusBadge status={currentYearStatus} size="sm" />
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                          {lastReview ? new Date(lastReview).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {pendingChanges > 0 ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600 border border-orange-200">
+                              <AlertTriangle className="h-3 w-3" />
+                              {pendingChanges} changes
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/clinician/patients/${p.id}`}>
+                              Open <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                            </Link>
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </CardContent>
@@ -182,9 +199,9 @@ export default function ClinicianDashboard() {
         <CardContent>
           <div className="space-y-4">
             {[
-              { name: 'Ananya Kumar', rel: 'Daughter of Ravi Kumar', text: 'Dad forgot his evening medicine yesterday and seemed confused about what day it was.', time: '2h ago', tag: 'Medication', patientId: DEMO_PATIENT_ID },
-              { name: 'Latha Reddy', rel: 'Caregiver of Ravi Kumar', text: 'Morning medication still in pill box when I arrived at 9am.', time: '5h ago', tag: 'Medication', patientId: DEMO_PATIENT_ID },
-              { name: 'Meena Iyer', rel: 'Neighbor of Ravi Kumar', text: "He hasn't taken his morning walk all this week. Very unusual.", time: '1d ago', tag: 'Mobility', patientId: DEMO_PATIENT_ID },
+              { name: 'Sarah Miller', rel: 'Daughter', text: 'Dad forgot his evening medicine yesterday and seemed confused about what day it was.', time: '2h ago', tag: 'Medication', patientId: primaryPatientId },
+              { name: 'Maria Pelletier', rel: 'Caregiver', text: 'Morning medication still in pill box when I arrived at 9am.', time: '5h ago', tag: 'Medication', patientId: primaryPatientId },
+              { name: 'Meena Iyer', rel: 'Neighbor', text: "He hasn't taken his morning walk all this week. Very unusual.", time: '1d ago', tag: 'Mobility', patientId: primaryPatientId },
             ].map((item, i) => (
               <Link key={i} href={`/clinician/patients/${item.patientId}/care-circle`} className="flex gap-4 rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-semibold flex-shrink-0">

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Brain, CheckCircle, Printer, Download, RefreshCw, AlertTriangle, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoClinicalBrief, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
 const sectionConfig = [
@@ -21,17 +21,48 @@ const sectionConfig = [
 
 export default function ClinicalBriefPage({ params }: { params: { patientId: string } }) {
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(true); // show demo by default
+  const [generated, setGenerated] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, briefResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          patientsApi.clinicalBrief(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          brief: briefResp?.data ?? null,
+        });
+        if (briefResp?.data) setGenerated(true);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading clinical brief...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, brief } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Assigned Clinician',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 0,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
   };
-
-  const brief = demoClinicalBrief;
 
   const regenerate = () => {
     setGenerating(true);
@@ -40,7 +71,7 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-6 animate-fade-in">
         <div className="flex items-start justify-between">
           <div>
@@ -86,9 +117,7 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
                     <h2 className="font-bold text-lg">Clinical Brief — {patient.firstName} {patient.lastName}</h2>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Generated {formatDate(brief.generatedAt, { time: true })}</span>
-                    <span>·</span>
-                    <Badge variant="secondary" className="text-xs">🔬 Demo — Synthetic Data</Badge>
+                    <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Generated {brief?.generatedAt ? formatDate(brief.generatedAt, { time: true }) : 'Just now'}</span>
                   </div>
                 </div>
                 <Badge variant="outline" className="text-xs flex-shrink-0">Requires Clinician Review</Badge>
@@ -128,7 +157,7 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3">
-                    {brief.sections.suggestedAreasForClinicalReview.map((item, i) => (
+                    {brief.sections.suggestedAreasForClinicalReview.map((item: string, i: number) => (
                       <li key={i} className="flex items-start gap-3">
                         <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold flex-shrink-0 mt-0.5">
                           {i + 1}
@@ -144,11 +173,11 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
             {/* Final message */}
             <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-6 text-center space-y-3">
               <p className="text-base font-semibold text-foreground leading-relaxed">
-                Baseline didn&apos;t just remember Ravi&apos;s medical history.
+                Baseline didn&apos;t just remember {patient.firstName}&apos;s medical history.
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl mx-auto">
                 It recognized that <strong>something changed</strong>, showed <strong>who noticed it</strong>,
-                compared it with <strong>Ravi&apos;s normal pattern</strong>, connected it with <strong>his past</strong>,
+                compared it with <strong>{patient.firstName}&apos;s normal pattern</strong>, connected it with <strong>their past</strong>,
                 and gave the clinician the <strong>evidence needed to review it</strong>.
               </p>
               <div className="flex justify-center gap-3 pt-2">

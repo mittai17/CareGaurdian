@@ -1,13 +1,13 @@
-import type { Metadata } from 'next';
+"use client";
+
+import { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle, Clock, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoMedications, demoYearTimeline } from '@/lib/demo-data';
+import { patientsApi, medicationsApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
-
-export const metadata: Metadata = { title: 'Medications' };
 
 const signalConfig: Record<string, { label: string; color: string; icon: string }> = {
   ADHERENCE_DECLINE: { label: 'Adherence ↓', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: '📉' },
@@ -16,21 +16,53 @@ const signalConfig: Record<string, { label: string; color: string; icon: string 
   POTENTIAL_INTERACTION: { label: 'Potential Interaction', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: '⚡' },
 };
 
-export default function MedicationsPage() {
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
+export default function MedicationsPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, medsResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          medicationsApi.list(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          meds: medsResp || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading medications...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, meds } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
   };
 
-  const meds = demoMedications;
-  const criticalMeds = meds.filter(m => m.signals.includes('POTENTIAL_ALLERGY_CONFLICT'));
+  const criticalMeds = meds.filter((m: any) => m.signals?.includes('POTENTIAL_ALLERGY_CONFLICT'));
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-5 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
@@ -57,8 +89,8 @@ export default function MedicationsPage() {
         )}
 
         <div className="space-y-3">
-          {meds.map((med) => (
-            <Card key={med.id} className={cn('card-hover', med.signals.includes('POTENTIAL_ALLERGY_CONFLICT') && 'border-red-300')}>
+          {meds.map((med: any) => (
+            <Card key={med.id} className={cn('card-hover', med.signals?.includes('POTENTIAL_ALLERGY_CONFLICT') && 'border-red-300')}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -87,7 +119,7 @@ export default function MedicationsPage() {
                         Changed {formatDate(med.recentChange.date)} — {med.recentChange.description}
                       </div>
                     )}
-                    {med.signals.length > 0 && (
+                    {med.signals && med.signals.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-3">
                         {med.signals.map((signal: string) => {
                           const sc = signalConfig[signal] ?? { label: signal, color: 'bg-gray-50 text-gray-600 border-gray-200', icon: '' };
@@ -102,7 +134,7 @@ export default function MedicationsPage() {
                   </div>
 
                   {/* Adherence */}
-                  {med.adherence !== null && (
+                  {med.adherence !== null && med.adherence !== undefined && (
                     <div className="text-right flex-shrink-0">
                       <p className="text-xs text-muted-foreground mb-1">Adherence</p>
                       <p className={cn('text-2xl font-bold', med.adherence < 80 ? 'text-red-600' : med.adherence < 90 ? 'text-orange-600' : 'text-emerald-600')}>

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle, Clock, AlertCircle, Shield, Plus, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
-import { demoPatient, demoCareCircle, demoYearDetail, demoYearTimeline, DEMO_PATIENT_ID } from '@/lib/demo-data';
+import { patientsApi, careCircleApi } from '@/lib/api';
 import { cn, timeAgo } from '@/lib/utils';
 
 const verificationConfig: Record<string, { label: string; color: string }> = {
@@ -30,17 +30,29 @@ export default function CareCirclePage({ params }: { params: { patientId: string
   const [reportText, setReportText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const patient = {
-    id: demoPatient.id, firstName: demoPatient.firstName, lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth, gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor, lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount, status: demoPatient.status,
-    currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
-  };
-
-  const feed = demoYearDetail[2026]?.careCircleReports || [];
-  const members = demoCareCircle;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, careCircleResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          careCircleApi.list(params.patientId).catch(() => []),
+        ]);
+        setData({
+          patient: summary?.patient,
+          members: careCircleResp || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
 
   const handleSubmit = () => {
     if (reportText.trim() && selectedCategory) {
@@ -49,9 +61,29 @@ export default function CareCirclePage({ params }: { params: { patientId: string
     }
   };
 
+  if (loading) return <div className="p-6">Loading care circle...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, members } = data;
+  const feed = [];
+  const displayMembers = members;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: displayMembers.length,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+  };
+
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-5 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
@@ -84,7 +116,7 @@ export default function CareCirclePage({ params }: { params: { patientId: string
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
-              {tab === 'feed' ? `Care Feed (${feed.length})` : `Members (${members.length})`}
+              {tab === 'feed' ? `Care Feed (${feed.length})` : `Members (${displayMembers.length})`}
             </button>
           ))}
         </div>
@@ -102,7 +134,7 @@ export default function CareCirclePage({ params }: { params: { patientId: string
                   3 Care Circle members independently reported related observations within 7 days.
                 </p>
                 <p className="text-xs text-emerald-600 mt-2">
-                  Reporters: Ananya Kumar (Daughter) · Suresh Kumar (Son) · Meena Iyer (Neighbor)
+                  Reporters: Sarah Miller (Daughter) · David Miller (Son) · Meena Iyer (Neighbor)
                 </p>
                 <p className="text-xs text-emerald-600 mt-1 italic">
                   This is observational evidence, not a diagnosis. Independent corroboration strengthens the signal.
@@ -110,7 +142,7 @@ export default function CareCirclePage({ params }: { params: { patientId: string
               </div>
 
               {/* Reports */}
-              {feed.map((report) => {
+              {feed.map((report: any) => {
                 const cat = categoryConfig[report.category] ?? { icon: '💬', label: report.category };
                 return (
                   <div key={report.id} className="rounded-xl border bg-card p-5 card-hover">
@@ -215,14 +247,14 @@ export default function CareCirclePage({ params }: { params: { patientId: string
         ) : (
           /* Members list */
           <div className="grid grid-cols-2 gap-4">
-            {members.map((member) => {
-              const verif = verificationConfig[member.verificationStatus] ?? { label: member.verificationStatus, color: 'text-gray-600' };
+            {displayMembers.map((member: any) => {
+              const verif = verificationConfig[member.verificationStatus || 'VERIFIED'] ?? { label: '✓ Verified', color: 'text-gray-600' };
               return (
-                <Card key={member.id} className="card-hover">
+                <Card key={member.userId || member.id} className="card-hover">
                   <CardContent className="p-5">
                     <div className="flex items-start gap-4">
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-base flex-shrink-0">
-                        {member.initials}
+                        {member.name[0]}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -231,15 +263,15 @@ export default function CareCirclePage({ params }: { params: { patientId: string
                             {verif.label}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{member.relationship}</p>
+                        <p className="text-sm text-muted-foreground">{member.relationshipType || member.relationship}</p>
                         <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
                           <span>{member.observationCount} observations</span>
-                          <span>Last: {timeAgo(member.lastActivity)}</span>
+                          <span>Last: {timeAgo(member.lastObservationAt || member.lastActivity)}</span>
                         </div>
                         <div className="mt-3">
                           <p className="text-xs font-medium text-muted-foreground mb-1.5">Permissions</p>
                           <div className="flex flex-wrap gap-1">
-                            {member.permissions.map((p: string) => (
+                            {(member.roles || member.permissions || []).map((p: string) => (
                               <span key={p} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600">
                                 {p.replace(/_/g, ' ')}
                               </span>

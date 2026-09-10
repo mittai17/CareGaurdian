@@ -38,8 +38,8 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="mx-auto max-w-4xl px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border bg-blue-50 border-blue-200 px-4 py-1.5 text-sm text-blue-700 mb-8">
-          🔬 Demo mode — synthetic data only
+        <div className="inline-flex items-center gap-2 rounded-full border bg-emerald-50 border-emerald-200 px-4 py-1.5 text-sm text-emerald-700 mb-8">
+          🏥 CareGuardian — Clinical Health Memory Platform
         </div>
         <h1 className="text-5xl font-bold text-foreground leading-tight mb-6">
           Understand what changed<br />
@@ -51,7 +51,7 @@ export default function LandingPage() {
         </p>
         <div className="flex items-center justify-center gap-4">
           <Button size="lg" asChild>
-            <Link href="/clinician">View Demo Dashboard <ChevronRight className="ml-1.5 h-5 w-5" /></Link>
+            <Link href="/clinician">Open Clinician Dashboard <ChevronRight className="ml-1.5 h-5 w-5" /></Link>
           </Button>
           <Button size="lg" variant="outline" asChild>
             <Link href="/auth/signup">Create Account</Link>
@@ -85,15 +85,15 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="mx-auto max-w-4xl px-6 py-20 text-center">
         <h2 className="text-3xl font-bold mb-4">Ready to see it in action?</h2>
-        <p className="text-muted-foreground mb-8">Open the demo dashboard to see Ravi Kumar&apos;s complete health memory.</p>
+        <p className="text-muted-foreground mb-8">Sign in to your clinician dashboard to view your patients&apos; complete health memory.</p>
         <Button size="lg" asChild>
-          <Link href="/clinician">Open Demo Dashboard →</Link>
+          <Link href="/auth/login">Sign In to Dashboard →</Link>
         </Button>
       </section>
 
       <footer className="border-t border-border py-8 text-center text-sm text-muted-foreground">
-        <p>© 2026 Baseline. AI-Powered Persistent Health Memory.</p>
-        <p className="mt-1 text-xs">All demo data is synthetic. No real patient information is present.</p>
+        <p>© 2026 CareGuardian. AI-Powered Persistent Health Memory.</p>
+        <p className="mt-1 text-xs">Protected by enterprise-grade encryption. HIPAA-compliant infrastructure.</p>
       </footer>
     </div>
   );

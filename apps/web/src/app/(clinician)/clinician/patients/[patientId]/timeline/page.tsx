@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, ChevronRight, Calendar, AlertTriangle, CheckCircle, Info,
@@ -11,27 +11,48 @@ import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
 import { YearTimeline, YearStatusLegend } from '@/components/timeline/year-timeline';
 import { HealthMetricCard, StatusBadge } from '@/components/health/health-metric-card';
-import {
-  demoPatient, demoYearTimeline, demoYearDetail, DEMO_PATIENT_ID,
-} from '@/lib/demo-data';
+import { patientsApi } from '@/lib/api';
 import { cn, formatDate, statusConfig, type YearStatus, eventTypeConfig } from '@/lib/utils';
 
 export default function TimelinePage({ params }: { params: { patientId: string } }) {
-  const timeline = demoYearTimeline;
   const [selectedYear, setSelectedYear] = useState<number>(timeline.currentYear);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const yearData = (demoYearDetail as Record<number, any>)[selectedYear];
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        setData({
+          patient: summary?.patient,
+          timeline: null,
+          yearDetail: {},
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
 
-  const patient = {
-    id: demoPatient.id,
-    firstName: demoPatient.firstName,
-    lastName: demoPatient.lastName,
-    dateOfBirth: demoPatient.dateOfBirth,
-    gender: demoPatient.gender,
-    primaryDoctor: demoPatient.primaryDoctor,
-    lastClinicalReview: demoPatient.lastClinicalReview,
-    careCircleCount: demoPatient.careCircleCount,
-    status: demoPatient.status,
+  if (loading) return <div className="p-6">Loading timeline...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, yearDetail } = data;
+  const yearData = yearDetail[selectedYear];
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
     currentYearStatus: timeline.years.find(y => y.year === timeline.currentYear)?.status,
   };
 
@@ -53,7 +74,7 @@ export default function TimelinePage({ params }: { params: { patientId: string }
 
   return (
     <>
-      <PatientHeader patient={patient} />
+      <PatientHeader patient={patientData} />
       <div className="p-6 space-y-6 animate-fade-in">
         {/* Page header */}
         <div>

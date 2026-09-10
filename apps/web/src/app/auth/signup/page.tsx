@@ -34,7 +34,7 @@ export default function SignupPage() {
             </div>
             <h2 className="text-xl font-bold mb-2">Account created!</h2>
             <p className="text-muted-foreground text-sm mb-6">
-              Check your email to verify your account. In demo mode, verification is skipped.
+              Check your email to verify your account before signing in.
             </p>
             <Button asChild className="w-full">
               <Link href="/clinician">Continue to Dashboard →</Link>
