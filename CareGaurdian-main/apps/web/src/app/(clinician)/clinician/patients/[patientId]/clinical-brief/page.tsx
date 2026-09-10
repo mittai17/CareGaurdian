@@ -98,7 +98,7 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
             {/* Brief sections */}
             <div className="space-y-4">
               {sectionConfig.map(({ key, label, icon }) => {
-                const content = (brief.sections as Record<string, string>)[key];
+                const content = (brief.sections as Record<string, any>)[key];
                 if (!content) return null;
                 return (
                   <Card key={key} className="card-hover">

@@ -39,7 +39,7 @@ export default function CareCirclePage({ params }: { params: { patientId: string
     currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
   };
 
-  const feed = (demoYearDetail[2026] as typeof demoYearDetail[2026]).careCircleReports;
+  const feed = demoYearDetail[2026]?.careCircleReports || [];
   const members = demoCareCircle;
 
   const handleSubmit = () => {

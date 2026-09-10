@@ -101,7 +101,7 @@ export const demoYearTimeline = {
   ],
 };
 
-export const demoYearDetail: Record<number, unknown> = {
+export const demoYearDetail = {
   2026: {
     year: 2026,
     status: 'WATCH',

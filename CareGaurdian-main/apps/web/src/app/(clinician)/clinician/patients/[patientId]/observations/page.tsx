@@ -28,7 +28,7 @@ export default function ObservationsPage() {
     currentYearStatus: demoYearTimeline.years.find(y => y.year === demoYearTimeline.currentYear)?.status,
   };
 
-  const reports = (demoYearDetail[2026] as typeof demoYearDetail[2026]).careCircleReports;
+  const reports = demoYearDetail[2026]?.careCircleReports || [];
 
   return (
     <>

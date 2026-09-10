@@ -20,7 +20,7 @@ export default function TimelinePage({ params }: { params: { patientId: string }
   const timeline = demoYearTimeline;
   const [selectedYear, setSelectedYear] = useState<number>(timeline.currentYear);
 
-  const yearData = (demoYearDetail as Record<number, unknown>)[selectedYear] as typeof demoYearDetail[2026] | undefined;
+  const yearData = (demoYearDetail as Record<number, any>)[selectedYear];
 
   const patient = {
     id: demoPatient.id,
