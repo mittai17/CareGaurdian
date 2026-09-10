@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "description": "AI-Powered Persistent Health Memory for Elderly Patients",
   "scripts": {
+    "start": "pnpm run start:web",
+    "dev": "pnpm run dev:web",
     "dev:api": "pnpm --filter @baseline/api start:dev",
     "dev:web": "pnpm --filter web dev",
     "dev:expo": "pnpm --filter @baseline/expo start",
