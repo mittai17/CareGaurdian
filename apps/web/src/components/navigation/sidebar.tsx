@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Heart, MessageSquare, Calendar,
   CheckSquare, BarChart2, Settings, HelpCircle, Shield, Bell,
-  Activity,
+  Activity, LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +27,7 @@ const bottomItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
@@ -106,6 +107,16 @@ export function Sidebar() {
             {label}
           </Link>
         ))}
+        <button
+          onClick={() => {
+            localStorage.removeItem('baseline_token');
+            router.push('/auth/login');
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors text-left"
+        >
+          <LogOut className="h-4 w-4 flex-shrink-0" />
+          Log out
+        </button>
       </div>
     </aside>
   );
