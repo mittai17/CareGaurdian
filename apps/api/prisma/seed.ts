@@ -176,7 +176,7 @@ async function seedPatientsAndCaregivers(doctorIds: string[], adminId: string) {
     for (const l of pd.labs) await prisma.labResult.create({data:{patientId:patient.id,testName:l.test,value:l.val,unit:l.unit||null,referenceRange:l.ref||null,collectedAt:l.date,interpretation:l.interp||null}});
 
     const rand = (max: number) => Math.floor(Math.random() * max);
-    const randEl = <T>(arr: T[]): T => arr[rand(arr.length)];
+    const randEl = <T>(arr: readonly T[]): T => arr[rand(arr.length)]!;
     const severityLevels = ['NORMAL', 'MILD', 'MODERATE', 'SEVERE'] as const;
     
     // Dynamic base observations
