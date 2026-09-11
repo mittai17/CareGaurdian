@@ -178,4 +178,53 @@ Provide a 2-4 sentence summary suitable for a "What Changed" section.`;
 
     throw new Error(`Unable to extract JSON from text: ${text.substring(0, 200)}...`);
   }
+
+  /**
+   * Generate AI-powered clinical brief sections based on structured data.
+   */
+  async generateClinicalBrief(data: any): Promise<any> {
+    const prompt = `Synthesize a clinical brief for a clinician dashboard based on the following patient data.
+Write concise, professional clinical paragraphs for each section. Do NOT diagnose. Do NOT recommend treatments.
+
+Overall State: ${data.overallState}
+Why Now: ${data.whyNow?.join('; ') ?? 'N/A'}
+Data Gaps: ${data.dataGaps?.map((g: any) => g.description).join('; ') ?? 'None'}
+Evidence:
+${data.evidence?.join('\n') ?? 'N/A'}
+Contradictions:
+${data.contradictions?.map((c: any) => c.description).join('\n') ?? 'None'}
+Historical Matches:
+${data.historicalMatches?.map((h: any) => h.title).join('\n') ?? 'None'}
+
+Generate a JSON object with a "sections" key containing the following string properties:
+- currentChanges: A paragraph summarizing the most pressing recent changes.
+- relevantHistory: A paragraph summarizing relevant history based on contradictions and historical matches.
+- careCircleObservations: A paragraph summarizing observations (from evidence).
+- medicationContext: A paragraph summarizing any medication-related signals in evidence.
+- cognitiveChanges: A paragraph summarizing any cognitive signals in evidence.
+- functionalChanges: A paragraph summarizing any functional signals in evidence.
+- historicalEpisodeMatch: A paragraph summarizing similarities to past episodes.
+- suggestedAreasForClinicalReview: An array of 2-3 short strings suggesting specific areas the clinician should review.`;
+
+    const schemaHint = `{
+      "sections": {
+        "currentChanges": "string",
+        "relevantHistory": "string",
+        "careCircleObservations": "string",
+        "medicationContext": "string",
+        "cognitiveChanges": "string",
+        "functionalChanges": "string",
+        "historicalEpisodeMatch": "string",
+        "suggestedAreasForClinicalReview": ["string"]
+      }
+    }`;
+
+    const result = await this.activeProvider.generateStructured<any>(prompt, schemaHint, { temperature: 0.2 });
+    
+    if (result.data) {
+      return result.data;
+    }
+
+    throw new Error(result.error ?? 'Failed to generate clinical brief');
+  }
 }

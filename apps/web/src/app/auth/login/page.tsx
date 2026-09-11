@@ -2,19 +2,51 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Shield, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { authApi } from '@/lib/api';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('dr.arjun.nair@careguardian.health');
+  const [email, setEmail] = useState('dr.priya.sharma@careguardian.health');
   const [password, setPassword] = useState('CareSafe2026!');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production: call authApi.login
-    window.location.href = '/clinician';
+    setLoading(true);
+    setError('');
+    try {
+      const res = await authApi.login(email.trim(), password);
+      const token = res.accessToken || res.data?.accessToken;
+      const user = res.user || res.data?.user;
+      if (token) {
+        localStorage.setItem('baseline_token', token);
+      }
+      if (user) {
+        localStorage.setItem('baseline_user', JSON.stringify(user));
+        const roles = user.roles || (user.role ? [user.role] : []);
+        if (roles.includes('PATIENT')) {
+          window.location.href = '/patient';
+        } else if (roles.includes('FAMILY_CAREGIVER') || roles.includes('PROFESSIONAL_CAREGIVER')) {
+          window.location.href = '/caregiver';
+        } else {
+          window.location.href = '/clinician';
+        }
+      } else {
+        window.location.href = '/clinician';
+      }
+    } catch (err: any) {
+      console.error('Login failed:', err);
+      setError(
+        err?.response?.data?.message ||
+        (typeof err === 'string' ? err : 'Invalid email or password. Please check your credentials.')
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,10 +68,12 @@ export default function LoginPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 mb-6">
-              <p className="text-sm text-emerald-700 font-medium">🏥 CareGuardian — Clinician Portal</p>
-              <p className="text-xs text-emerald-600 mt-0.5">Sign in with your @careguardian.health credentials · Password: CareSafe2026!</p>
-            </div>
+            {error && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 mb-4 flex items-center gap-2 text-xs text-rose-800">
+                <AlertCircle className="h-4 w-4 text-rose-600 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -83,10 +117,65 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Button type="submit" className="w-full" size="lg">Sign in</Button>
+              <Button type="submit" disabled={loading} className="w-full gap-2" size="lg">
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {loading ? 'Signing in...' : 'Sign in'}
+              </Button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-muted-foreground">
+            <div className="mt-6 pt-5 border-t border-border space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider text-center">
+                Quick Role Switcher
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('dr.vikram.malhotra@careguardian.health');
+                    setPassword('CareSafe2026!');
+                  }}
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
+                >
+                  <p className="font-semibold text-foreground">Dr. Vikram Malhotra</p>
+                  <p className="text-[10px] text-muted-foreground">Doctor / Clinician</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('dr.priya.sharma@careguardian.health');
+                    setPassword('CareSafe2026!');
+                  }}
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
+                >
+                  <p className="font-semibold text-foreground">Dr. Priya Sharma</p>
+                  <p className="text-[10px] text-muted-foreground">Doctor / Clinician</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('karthik.sundaram@careguardian.health');
+                    setPassword('CareSafe2026!');
+                  }}
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
+                >
+                  <p className="font-semibold text-foreground">Karthik Sundaram</p>
+                  <p className="text-[10px] text-muted-foreground">Family Caregiver</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('devaki.sundaram@careguardian.health');
+                    setPassword('CareSafe2026!');
+                  }}
+                  className="p-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 text-left transition-colors"
+                >
+                  <p className="font-semibold text-foreground">Devaki Sundaram</p>
+                  <p className="text-[10px] text-muted-foreground">Patient (Elderly)</p>
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-4 text-center text-sm text-muted-foreground">
               Don&apos;t have an account?{' '}
               <Link href="/auth/signup" className="text-primary hover:underline font-medium">Sign up</Link>
             </p>

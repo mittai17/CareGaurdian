@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Activity, Brain, Pill, Users, FileText, Heart, BarChart2,
-  AlertTriangle, Info, ChevronLeft, Clock,
+  AlertTriangle, Info, ChevronLeft, Clock, Network, FlaskConical,
+  Folder, AlertOctagon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAge, statusConfig, type YearStatus } from '@/lib/utils';
@@ -22,6 +23,7 @@ interface PatientHeaderProps {
     careCircleCount?: number;
     status?: string;
     currentYearStatus?: string;
+    dementiaStage?: string;
   };
 }
 
@@ -46,8 +48,12 @@ const patientNavItems = [
 const navItems = [
   { href: '', label: 'Overview', icon: Activity },
   { href: '/timeline', label: 'Timeline', icon: Clock },
+  { href: '/graph', label: 'Health Graph', icon: Network },
   { href: '/medications', label: 'Medications', icon: Pill },
   { href: '/observations', label: 'Observations', icon: Brain },
+  { href: '/labs', label: 'Labs', icon: FlaskConical },
+  { href: '/notes', label: 'Notes', icon: FileText },
+  { href: '/documents', label: 'Documents', icon: Folder },
   { href: '/baseline', label: 'Baseline', icon: BarChart2 },
   { href: '/care-circle', label: 'Care Circle', icon: Heart },
   { href: '/episodes', label: 'Episodes', icon: FileText },
@@ -55,6 +61,7 @@ const navItems = [
   { href: '/contradictions', label: 'Conflicts', icon: AlertTriangle },
   { href: '/missing-information', label: 'Gaps', icon: Info },
   { href: '/clinical-brief', label: 'Clinical Brief', icon: FileText },
+  { href: '/emergency', label: 'Emergency', icon: AlertOctagon },
 ];
 
 export function PatientHeader({ patient }: PatientHeaderProps) {
@@ -106,6 +113,11 @@ export function PatientHeader({ patient }: PatientHeaderProps) {
                     <Badge variant="outline" className="text-xs">
                       {patient.status ?? 'Active'}
                     </Badge>
+                    {patient.dementiaStage && (
+                      <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">
+                        {patient.dementiaStage}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {age} years · {patient.gender ?? 'Unknown'} ·{' '}

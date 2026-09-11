@@ -171,6 +171,7 @@ model PatientOrganizationRelationship {
 model User {
   id            String                        @id @default(uuid())
   email         String                        @unique
+  handle        String?                       @unique
   passwordHash  String
   name          String
   roles         UserRole[]
@@ -187,11 +188,14 @@ model User {
   consentsGranted Consent[]                    @relation("ConsentGrantor")
   consentsReceived Consent[]                   @relation("ConsentRecipient")
   auditEntries  AuditLog[]
-notifications Notification[]
+  notifications Notification[]
   agentRuns     AgentRun[]                 @relation("AgentRunActor")
   documentsUploaded Document[]
   feedbacks     ClinicianFeedback[]
   sessions      Session[]
+  sentMessages     Message[]                   @relation("SentMessages")
+  receivedMessages Message[]                   @relation("ReceivedMessages")
+  outgoingHandovers Handover[]                  @relation("OutgoingHandovers")
   createdAt     DateTime                      @default(now())
   updatedAt     DateTime                      @updatedAt
 }
@@ -223,6 +227,7 @@ model Patient {
   emergencyContactPhone String?
   timezone              String                             @default("UTC")
   preferredLanguage      String                             @default("en")
+  dementiaStage         String?
   createdById           String?
   createdBy             User?                              @relation("PatientCreatedBy", fields: [createdById], references: [id])
   createdAt             DateTime                            @default(now())
@@ -251,6 +256,8 @@ model Patient {
   assessments           Assessment[]
   emergencyAccesses     EmergencyAccess[]
   agentRuns             AgentRun[]
+  messages              Message[]
+  handovers             Handover[]
   @@index([lastName, firstName])
   @@index([createdAt])
 }
@@ -265,6 +272,27 @@ model PatientUserRelationship {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([patientId, userId])
   @@index([userId])
+}
+
+model Message {
+  id               String    @id @default(uuid())
+  senderId         String
+  receiverId       String?
+  patientId        String?
+  content          String
+  status           String    @default("SENT")
+  attachmentType   String?
+  attachmentTitle  String?
+  attachmentDetail String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  sender           User      @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver         User?     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: SetNull)
+  patient          Patient?  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([patientId])
 }
 
 model GuardianRelationship {
@@ -711,4 +739,27 @@ model EmergencyAccess {
   createdAt   DateTime @default(now())
   @@index([patientId])
   @@index([userId])
+}
+
+model Handover {
+  id               String   @id @default(uuid())
+  patientId        String
+  outgoingStaffId  String
+  incomingStaffName String?
+  patientStatus    String
+  tasksCompleted   String
+  medicationsGiven String
+  vitalSigns       String
+  newSymptoms      String?
+  observations     String?
+  aiSummary        String
+  signed           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  patient          Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  outgoingStaff    User     @relation("OutgoingHandovers", fields: [outgoingStaffId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([outgoingStaffId])
+  @@index([createdAt])
 }

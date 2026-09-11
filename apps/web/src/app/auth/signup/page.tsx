@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Shield } from 'lucide-react';
+import { Shield, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { authApi } from '@/lib/api';
 
 const roles = [
   { value: 'CLINICIAN', label: 'Clinician / Doctor' },
@@ -17,11 +18,37 @@ const roles = [
 
 export default function SignupPage() {
   const [role, setRole] = useState('CLINICIAN');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStep(2);
+    setLoading(true);
+    setError('');
+    try {
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      const res = await authApi.register({
+        name: fullName,
+        email: email.trim().toLowerCase(),
+        password,
+        roles: [role],
+      });
+      const token = res?.accessToken || res?.data?.accessToken;
+      const user = res?.user || res?.data?.user;
+      if (token) localStorage.setItem('baseline_token', token);
+      if (user) localStorage.setItem('baseline_user', JSON.stringify(user));
+      setStep(2);
+    } catch (err: any) {
+      console.error('Registration failed:', err);
+      setError(err?.response?.data?.message || 'Failed to create account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (step === 2) {
@@ -34,10 +61,10 @@ export default function SignupPage() {
             </div>
             <h2 className="text-xl font-bold mb-2">Account created!</h2>
             <p className="text-muted-foreground text-sm mb-6">
-              Check your email to verify your account before signing in.
+              Your account has been registered in the database.
             </p>
             <Button asChild className="w-full">
-              <Link href="/clinician">Continue to Dashboard →</Link>
+              <Link href="/clinician">Continue to Clinician Dashboard →</Link>
             </Button>
           </CardContent>
         </Card>
@@ -61,24 +88,58 @@ export default function SignupPage() {
             <p className="text-sm text-muted-foreground">Join Baseline — privacy-first health memory platform</p>
           </CardHeader>
           <CardContent>
+            {error && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 mb-4 flex items-center gap-2 text-xs text-rose-800">
+                <AlertCircle className="h-4 w-4 text-rose-600 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium mb-1.5">First name</label>
-                  <input required className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="First name" />
+                  <input
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="First name"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1.5">Last name</label>
-                  <input required className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="Last name" />
+                  <input
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Last name"
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1.5">Email</label>
-                <input type="email" required className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="your@email.com" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="your@email.com"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1.5">Password</label>
-                <input type="password" required minLength={8} className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="8+ characters" />
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="8+ characters"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1.5">Your role</label>
@@ -97,7 +158,10 @@ export default function SignupPage() {
                   Clinicians require professional verification before accessing patient records. This is separate from account creation.
                 </div>
               )}
-              <Button type="submit" className="w-full" size="lg">Create Account</Button>
+              <Button type="submit" disabled={loading} className="w-full gap-2" size="lg">
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {loading ? 'Creating Account...' : 'Create Account'}
+              </Button>
             </form>
             <p className="mt-4 text-center text-sm text-muted-foreground">
               Already have an account?{' '}

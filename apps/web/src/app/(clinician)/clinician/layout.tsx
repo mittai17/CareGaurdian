@@ -1,8 +1,21 @@
+'use client';
+
+import Link from 'next/link';
 import { Sidebar } from '@/components/navigation/sidebar';
 import { Bell, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/context/auth-context';
 
 export default function ClinicianLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const displayName = user?.name || 'Dr. Vikram Malhotra';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('') || 'VM';
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -20,12 +33,17 @@ export default function ClinicianLayout({ children }: { children: React.ReactNod
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+            <Button variant="ghost" size="icon" className="relative" asChild aria-label="Notifications">
+              <Link href="/clinician/notifications">
+                <Bell className="h-5 w-5" />
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+              </Link>
             </Button>
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-semibold cursor-pointer">
-              PS
+            <div
+              title={displayName}
+              className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-semibold cursor-pointer border border-primary/20"
+            >
+              {initials}
             </div>
           </div>
         </header>
