@@ -1,4 +1,5 @@
 "use client";
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 
 import { useEffect, useState } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, PlusCircle, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
@@ -79,7 +80,7 @@ export default function EvidencePage({ params }: { params: { patientId: string }
       try {
         const summary = await patientsApi.summary(params.patientId).catch(() => null);
         setData({
-          patient: summary?.patient,
+          patient: summary?.patient || MOCK_PATIENTS_MAP[params.patientId],
           evidence: evidenceItems,
         });
       } catch (e) {
@@ -107,6 +108,7 @@ export default function EvidencePage({ params }: { params: { patientId: string }
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   const setFeedback = (id: string, verdict: string) => {

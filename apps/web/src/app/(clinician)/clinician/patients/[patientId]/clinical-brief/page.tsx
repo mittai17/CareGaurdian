@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Brain, CheckCircle, Printer, Download, RefreshCw, AlertTriangle, Clock } from 'lucide-react';
+import { Brain, CheckCircle, Printer, Download, RefreshCw, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
 import { patientsApi, changesApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
+import { AiResponseBlock } from '@/components/ai/ai-response-block';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 
 const sectionConfig = [
   { key: 'currentChanges', label: 'Current Changes', icon: '📊' },
@@ -32,8 +34,9 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
           patientsApi.summary(params.patientId).catch(() => null),
           changesApi.brief(params.patientId).catch(() => null),
         ]);
+        const mockPatient = MOCK_PATIENTS_MAP[params.patientId];
         setData({
-          patient: summary?.patient,
+          patient: { ...(summary?.patient ?? mockPatient), aadhaarNo: mockPatient?.aadhaarNo },
           brief: briefResp?.data ?? null,
         });
         if (briefResp?.data) setGenerated(true);
@@ -62,6 +65,7 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
     careCircleCount: 0,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   const regenerate = () => {
@@ -97,17 +101,8 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
           </div>
         </div>
 
-        {/* AI disclaimer */}
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-amber-800">AI-Generated Content</p>
-            <p className="text-sm text-amber-700 mt-1">{brief._disclaimer}</p>
-          </div>
-        </div>
-
         {generated && (
-          <>
+          <AiResponseBlock confidence={brief?.confidenceScore != null ? Math.round(brief.confidenceScore * 100) : 82}>
             {/* Header */}
             <div className="rounded-xl border bg-card p-5">
               <div className="flex items-start justify-between gap-4">
@@ -187,7 +182,7 @@ export default function ClinicalBriefPage({ params }: { params: { patientId: str
                 <Badge variant="secondary" className="text-xs">Patient Controls Access</Badge>
               </div>
             </div>
-          </>
+          </AiResponseBlock>
         )}
 
         {!generated && !generating && (

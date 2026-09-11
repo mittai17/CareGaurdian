@@ -1,0 +1,3800 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+import { TrendingDown, TrendingUp, Info, AlertTriangle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, baselineApi } from '@/lib/api';
+import { cn } from '@/lib/utils';
+
+const confidenceConfig: Record<string, { label: string; color: string }> = {
+  HIGH: { label: 'High confidence', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  MODERATE: { label: 'Moderate confidence', color: 'text-blue-700 bg-blue-50 border-blue-200' },
+  LOW: { label: 'Limited data', color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+  INSUFFICIENT_DATA: { label: 'Insufficient data', color: 'text-gray-600 bg-gray-50 border-gray-200' },
+};
+
+export default function BaselinePage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, baselineResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          baselineApi.get(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          baseline: baselineResp?.data || null,
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading baseline...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, baseline } = data;
+  const currentYearStatus = 'ACTIVE';
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Assigned Clinician',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: currentYearStatus,
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold">Personal Baseline</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {patient.firstName}&apos;s personal normal pattern, established from historical data. Not a population comparison.
+          </p>
+        </div>
+
+        {/* What is this */}
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+            <Info className="h-4 w-4" /> How Personal Baseline Works
+          </p>
+          <p className="text-sm text-blue-700 mt-2">
+            Baseline learns {patient.firstName}&apos;s <strong>personal normal state</strong> from historical data.
+            It never compares against population averages.
+            If there is insufficient data, the system will say so — it will never fabricate a baseline.
+          </p>
+          <p className="text-xs text-blue-600 mt-2">
+            Baseline period: Previous 90 days · Computed: {new Date(baseline?.computedAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+
+        {/* Metrics */}
+        <div className="space-y-4">
+          {(baseline?.metrics || []).map((metric: any) => {
+            const confCfg = confidenceConfig[metric.confidence] ?? confidenceConfig.INSUFFICIENT_DATA;
+            const isInsufficientData = metric.confidence === 'INSUFFICIENT_DATA';
+            const hasMeaningfulChange = metric.change !== null && Math.abs(metric.change) >= 10;
+
+            return (
+              <Card key={metric.metric} className={cn('card-hover', hasMeaningfulChange && metric.trend === 'down' && 'border-orange-200')}>
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="font-semibold text-base">{metric.label}</h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">{metric.description}</p>
+                        </div>
+                        <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium flex-shrink-0', confCfg.color)}>
+                          {confCfg.label}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-4 mt-4">
+                        {/* Normal range */}
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Normal Range</p>
+                          <p className="text-sm font-semibold">{metric.normalRange}</p>
+                        </div>
+                        {/* Current */}
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Current</p>
+                          <p className={cn('text-sm font-semibold',
+                            metric.trend === 'down' && metric.change !== null ? 'text-red-600' :
+                            metric.trend === 'up' && metric.change !== null ? 'text-red-600' : ''
+                          )}>
+                            {metric.current}
+                          </p>
+                        </div>
+                        {/* Change */}
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Change</p>
+                          {metric.change !== null ? (
+                            <div className={cn('flex items-center gap-1 text-sm font-semibold',
+                              metric.trend === 'down' ? 'text-red-600' : 'text-emerald-600'
+                            )}>
+                              {metric.trend === 'down' ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+                              {metric.change > 0 ? '+' : ''}{metric.change}%
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Qualitative</p>
+                          )}
+                        </div>
+                        {/* Data quality */}
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Data Quality</p>
+                          {isInsufficientData ? (
+                            <div className="flex items-center gap-1 text-xs text-yellow-600">
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              <span>Not enough data</span>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">{metric.sampleCount} samples · {metric.periodDays}d period</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Progress bar for numeric metrics */}
+                      {metric.change !== null && metric.currentValue !== null && metric.baselineValue !== null && (
+                        <div className="mt-4">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                            <span>0</span>
+                            <span>Baseline: {metric.baselineValue.toLocaleString()} {metric.unit}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-gray-100 relative overflow-hidden">
+                            {/* Baseline marker */}
+                            <div className="absolute top-0 bottom-0 w-0.5 bg-gray-400" style={{ left: '100%' }} />
+                            {/* Current value bar */}
+                            <div
+                              className={cn('h-full rounded-full transition-all', metric.trend === 'down' ? 'bg-red-400' : 'bg-emerald-400')}
+                              style={{ width: `${Math.min(100, (metric.currentValue / metric.baselineValue) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                            <span>Current: {metric.currentValue.toLocaleString()} {metric.unit}</span>
+                            <span className={metric.trend === 'down' ? 'text-red-600 font-medium' : 'text-emerald-600 font-medium'}>
+                              {metric.change}% from baseline
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-muted-foreground italic text-center">
+          Baseline uses historical data to identify meaningful personal deviations — not population averages.
+          All changes require clinical review before any conclusions are drawn.
+        </p>
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { CheckCircle, Clock, AlertCircle, Shield, Plus, Send } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, careCircleApi } from '@/lib/api';
+import { cn, timeAgo } from '@/lib/utils';
+
+const verificationConfig: Record<string, { label: string; color: string }> = {
+  VERIFIED: { label: '✓ Verified', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  IDENTITY_VERIFIED: { label: '✓ Identity Verified', color: 'text-blue-700 bg-blue-50 border-blue-200' },
+  CLINICALLY_VERIFIED: { label: '✓ Clinical', color: 'text-purple-700 bg-purple-50 border-purple-200' },
+  LICENSE_VERIFIED: { label: '✓ License Verified', color: 'text-primary bg-primary/10 border-primary/20' },
+};
+
+const categoryConfig: Record<string, { icon: string; label: string }> = {
+  MEDICATION: { icon: '💊', label: 'Medication' },
+  CONFUSION: { icon: '🧠', label: 'Confusion' },
+  MOBILITY: { icon: '🚶', label: 'Mobility' },
+  APPETITE: { icon: '🍽️', label: 'Appetite' },
+  SLEEP: { icon: '😴', label: 'Sleep' },
+  OTHER: { icon: '💬', label: 'Other' },
+};
+
+export default function CareCirclePage({ params }: { params: { patientId: string } }) {
+  const [activeTab, setActiveTab] = useState<'feed' | 'members'>('feed');
+  const [reportText, setReportText] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, careCircleResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          careCircleApi.list(params.patientId).catch(() => []),
+        ]);
+        setData({
+          patient: summary?.patient,
+          members: careCircleResp || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  const handleSubmit = () => {
+    if (reportText.trim() && selectedCategory) {
+      setSubmitted(true);
+      setTimeout(() => { setSubmitted(false); setReportText(''); setSelectedCategory(''); }, 3000);
+    }
+  };
+
+  if (loading) return <div className="p-6">Loading care circle...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, members } = data;
+  const feed: any[] = [];
+  const displayMembers = members;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: displayMembers.length,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-5 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Care Circle</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Private trust-based care network for {patient.firstName} {patient.lastName}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 flex items-center gap-2">
+              <Shield className="h-3.5 w-3.5 text-amber-600" />
+              <span className="text-xs text-amber-700 font-medium">Private Network — Not public</span>
+            </div>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1.5" /> Invite Member
+            </Button>
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        <div className="flex gap-1 border-b border-border">
+          {(['feed', 'members'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize',
+                activeTab === tab
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab === 'feed' ? `Care Feed (${feed.length})` : `Members (${displayMembers.length})`}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'feed' ? (
+          <div className="grid grid-cols-3 gap-6">
+            {/* Feed */}
+            <div className="col-span-2 space-y-4">
+              {/* Corroboration alert */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
+                  🤝 Independent Corroboration
+                </p>
+                <p className="text-sm text-emerald-700 mt-1">
+                  3 Care Circle members independently reported related observations within 7 days.
+                </p>
+                <p className="text-xs text-emerald-600 mt-2">
+                  Reporters: Sarah Miller (Daughter) · David Miller (Son) · Meena Iyer (Neighbor)
+                </p>
+                <p className="text-xs text-emerald-600 mt-1 italic">
+                  This is observational evidence, not a diagnosis. Independent corroboration strengthens the signal.
+                </p>
+              </div>
+
+              {/* Reports */}
+              {feed.map((report: any) => {
+                const cat = categoryConfig[report.category] ?? { icon: '💬', label: report.category };
+                return (
+                  <div key={report.id} className="rounded-xl border bg-card p-5 card-hover">
+                    <div className="flex items-start gap-4">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-semibold flex-shrink-0">
+                        {report.avatar}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm">{report.reporter}</span>
+                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">{report.relationship}</span>
+                          <span className="ml-auto text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {timeAgo(report.date)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-foreground leading-relaxed">
+                          &ldquo;{report.text}&rdquo;
+                        </p>
+                        <div className="flex items-center gap-2 mt-3">
+                          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                            {cat.icon} {cat.label}
+                          </span>
+                          <Badge variant="outline" className="text-xs">Reported Observation</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Report Observation panel */}
+            <div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Report an Observation</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Takes less than 30 seconds. Stored as reported observation.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {submitted ? (
+                    <div className="py-6 text-center">
+                      <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
+                      <p className="text-sm font-semibold text-emerald-700">Observation recorded</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Original observation preserved. Care team notified.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">What category?</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(categoryConfig).map(([key, { icon, label }]) => (
+                            <button
+                              key={key}
+                              onClick={() => setSelectedCategory(key)}
+                              className={cn(
+                                'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+                                selectedCategory === key
+                                  ? 'border-primary bg-primary/5 text-primary'
+                                  : 'border-border hover:border-primary/50 text-muted-foreground'
+                              )}
+                            >
+                              <span>{icon}</span> {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">What did you notice?</p>
+                        <textarea
+                          value={reportText}
+                          onChange={(e) => setReportText(e.target.value)}
+                          placeholder="Describe what you observed in your own words…"
+                          rows={4}
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Your original text is preserved exactly as written.
+                        </p>
+                      </div>
+                      <Button
+                        className="w-full"
+                        onClick={handleSubmit}
+                        disabled={!reportText.trim() || !selectedCategory}
+                      >
+                        <Send className="h-4 w-4 mr-2" /> Submit Observation
+                      </Button>
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        This is a reported observation, not a medical diagnosis.
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          /* Members list */
+          <div className="grid grid-cols-2 gap-4">
+            {displayMembers.map((member: any) => {
+              const verif = verificationConfig[member.verificationStatus || 'VERIFIED'] ?? { label: '✓ Verified', color: 'text-gray-600' };
+              return (
+                <Card key={member.userId || member.id} className="card-hover">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-base flex-shrink-0">
+                        {member.name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold">{member.name}</h3>
+                          <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', verif.color)}>
+                            {verif.label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{member.relationshipType || member.relationship}</p>
+                        <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+                          <span>{member.observationCount} observations</span>
+                          <span>Last: {timeAgo(member.lastObservationAt || member.lastActivity)}</span>
+                        </div>
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5">Permissions</p>
+                          <div className="flex flex-wrap gap-1">
+                            {(member.roles || member.permissions || []).map((p: string) => (
+                              <span key={p} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600">
+                                {p.replace(/_/g, ' ')}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { Brain, CheckCircle, Printer, Download, RefreshCw, Clock } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, changesApi } from '@/lib/api';
+import { cn, formatDate } from '@/lib/utils';
+import { AiResponseBlock } from '@/components/ai/ai-response-block';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+
+const sectionConfig = [
+  { key: 'currentChanges', label: 'Current Changes', icon: '📊' },
+  { key: 'relevantHistory', label: 'Relevant History', icon: '📋' },
+  { key: 'careCircleObservations', label: 'Care Circle Observations', icon: '👥' },
+  { key: 'medicationContext', label: 'Medication Context', icon: '💊' },
+  { key: 'cognitiveChanges', label: 'Cognitive Changes', icon: '🧠' },
+  { key: 'functionalChanges', label: 'Functional Changes', icon: '🦽' },
+  { key: 'historicalEpisodeMatch', label: 'Historical Episode Match', icon: '🔄' },
+];
+
+export default function ClinicalBriefPage({ params }: { params: { patientId: string } }) {
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, briefResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          changesApi.brief(params.patientId).catch(() => null),
+        ]);
+        const mockPatient = MOCK_PATIENTS_MAP[params.patientId];
+        setData({
+          patient: { ...(summary?.patient ?? mockPatient), aadhaarNo: mockPatient?.aadhaarNo },
+          brief: briefResp?.data ?? null,
+        });
+        if (briefResp?.data) setGenerated(true);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading clinical brief...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, brief } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Assigned Clinician',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 0,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  const regenerate = () => {
+    setGenerating(true);
+    setTimeout(() => { setGenerating(false); setGenerated(true); }, 2500);
+  };
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-6 animate-fade-in">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Clinical Brief</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              AI-generated summary for clinical review. Not a diagnosis. Clinician must independently assess all findings.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={!generated}>
+              <Printer className="h-4 w-4 mr-1.5" /> Print
+            </Button>
+            <Button variant="outline" size="sm" disabled={!generated}>
+              <Download className="h-4 w-4 mr-1.5" /> Export PDF
+            </Button>
+            <Button size="sm" onClick={regenerate} disabled={generating}>
+              {generating ? (
+                <><RefreshCw className="h-4 w-4 mr-1.5 animate-spin" /> Generating…</>
+              ) : (
+                <><Brain className="h-4 w-4 mr-1.5" /> {generated ? 'Regenerate' : 'Generate Brief'}</>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {generated && (
+          <AiResponseBlock confidence={brief?.confidenceScore != null ? Math.round(brief.confidenceScore * 100) : 82}>
+            {/* Header */}
+            <div className="rounded-xl border bg-card p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Brain className="h-5 w-5 text-primary" />
+                    <h2 className="font-bold text-lg">Clinical Brief — {patient.firstName} {patient.lastName}</h2>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Generated {brief?.generatedAt ? formatDate(brief.generatedAt, { time: true }) : 'Just now'}</span>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-xs flex-shrink-0">Requires Clinician Review</Badge>
+              </div>
+            </div>
+
+            {/* Brief sections */}
+            <div className="space-y-4">
+              {sectionConfig.map(({ key, label, icon }) => {
+                const content = (brief.sections as Record<string, any>)[key];
+                if (!content) return null;
+                return (
+                  <Card key={key} className="card-hover">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <span className="text-base">{icon}</span>
+                        {label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-foreground leading-relaxed">{content}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {/* Suggested Areas for Clinical Review */}
+              <Card className="border-2 border-primary/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <span className="text-base">✅</span>
+                    Suggested Areas for Clinical Review
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    AI-identified areas requiring clinician assessment. Not autonomous recommendations.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {brief.sections.suggestedAreasForClinicalReview.map((item: string, i: number) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold flex-shrink-0 mt-0.5">
+                          {i + 1}
+                        </div>
+                        <p className="text-sm">{item}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Final message */}
+            <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-6 text-center space-y-3">
+              <p className="text-base font-semibold text-foreground leading-relaxed">
+                Baseline didn&apos;t just remember {patient.firstName}&apos;s medical history.
+              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+                It recognized that <strong>something changed</strong>, showed <strong>who noticed it</strong>,
+                compared it with <strong>{patient.firstName}&apos;s normal pattern</strong>, connected it with <strong>their past</strong>,
+                and gave the clinician the <strong>evidence needed to review it</strong>.
+              </p>
+              <div className="flex justify-center gap-3 pt-2">
+                <Badge variant="secondary" className="text-xs">AI Assisted</Badge>
+                <Badge variant="secondary" className="text-xs">Evidence Backed</Badge>
+                <Badge variant="secondary" className="text-xs">Clinician Reviews</Badge>
+                <Badge variant="secondary" className="text-xs">Patient Controls Access</Badge>
+              </div>
+            </div>
+          </AiResponseBlock>
+        )}
+
+        {!generated && !generating && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Brain className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="font-semibold text-lg mb-2">Generate Clinical Brief</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
+                Baseline will synthesize {patient.firstName}&apos;s health memory — combining medical history,
+                Care Circle observations, personal baseline, and historical episodes into a structured clinical summary.
+              </p>
+              <Button onClick={regenerate}>
+                <Brain className="h-4 w-4 mr-2" /> Generate Now
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {generating && (
+          <Card>
+            <CardContent className="py-12 text-center space-y-4">
+              <div className="flex items-center justify-center gap-3">
+                <RefreshCw className="h-8 w-8 text-primary animate-spin" />
+              </div>
+              <h3 className="font-semibold">Generating Clinical Brief…</h3>
+              <div className="space-y-2 text-sm text-muted-foreground max-w-xs mx-auto">
+                {['Retrieving health memory…', 'Analysing Care Circle observations…', 'Comparing with personal baseline…', 'Running safety checks…'].map((step, i) => (
+                  <div key={i} className="flex items-center gap-2 justify-center">
+                    <CheckCircle className="h-4 w-4 text-emerald-500" />
+                    <span>{step}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { AlertTriangle, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, contradictionsApi } from '@/lib/api';
+import { cn, formatDate } from '@/lib/utils';
+
+const severityConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  CRITICAL: { label: 'Critical', icon: AlertCircle, color: 'border-red-200 bg-red-50' },
+  REVIEW: { label: 'Needs Review', icon: AlertTriangle, color: 'border-yellow-200 bg-yellow-50' },
+  ATTENTION: { label: 'Attention', icon: Info, color: 'border-blue-200 bg-blue-50' },
+};
+
+export default function ContradictionsPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, contradictionsResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          contradictionsApi.list(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          contradictions: contradictionsResp?.data || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading record conflicts...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, contradictions } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  const openContradictions = contradictions.filter((c: any) => c.status === 'OPEN');
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-5 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold">Record Conflicts</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Contradictions detected between health records. Require human review — not automatically resolved.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-800">{openContradictions.length} Open Conflict{openContradictions.length !== 1 ? 's' : ''}</p>
+            <p className="text-sm text-red-700 mt-1">
+              Conflicts are never silently resolved. Each requires explicit clinician review.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {contradictions.map((c: any) => {
+            const sevCfg = severityConfig[c.severity] ?? severityConfig.REVIEW;
+            const SevIcon = sevCfg.icon;
+            return (
+              <Card key={c.id} className={cn('border-2', c.severity === 'CRITICAL' ? 'border-red-300' : 'border-yellow-300')}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={cn('flex h-10 w-10 items-center justify-center rounded-xl flex-shrink-0', sevCfg.color)}>
+                        <SevIcon className={cn('h-5 w-5', c.severity === 'CRITICAL' ? 'text-red-600' : 'text-yellow-600')} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{c.type.replace(/_/g, ' ')}</h3>
+                          <Badge variant="outline" className={cn('text-xs', c.severity === 'CRITICAL' ? 'border-red-200 text-red-700' : 'border-yellow-200 text-yellow-700')}>
+                            {sevCfg.label}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5">{c.description}</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className={cn('rounded-full border px-2 py-0.5 text-xs font-medium', c.status === 'OPEN' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600 border-gray-200')}>
+                        {c.status}
+                      </span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg border border-border bg-background p-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Record A</p>
+                      <p className="text-sm">{c.evidenceA}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background p-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Record B</p>
+                      <p className="text-sm">{c.evidenceB}</p>
+                    </div>
+                  </div>
+                  {c.currentMedication && (
+                    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">⚠️ Current Medication</p>
+                      <p className="text-sm text-red-800 mt-1">{c.currentMedication}</p>
+                    </div>
+                  )}
+                  <div className="mt-4 flex items-center gap-2">
+                    <Button size="sm">Mark as Reviewed</Button>
+                    <Button size="sm" variant="outline">Add Clinical Note</Button>
+                    <Button size="sm" variant="ghost">Not Relevant</Button>
+                    <p className="ml-auto text-xs text-muted-foreground">
+                      Detected {formatDate(c.detectedAt)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle, Stethoscope, Building2, Calendar, Clock, ArrowRight, ActivitySquare } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, encountersApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { cn, formatDate } from '@/lib/utils';
+import Link from 'next/link';
+
+const encounterTypeConfig: Record<string, { label: string; color: string; icon: any }> = {
+  OUTPATIENT: { label: 'Outpatient Visit', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Stethoscope },
+  EMERGENCY:  { label: 'Emergency Visit', color: 'bg-red-50 text-red-700 border-red-200', icon: AlertTriangle },
+  INPATIENT:  { label: 'Inpatient Admission', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: Building2 },
+  TELEHEALTH: { label: 'Telehealth', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Calendar },
+};
+
+export default function EpisodesPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, encountersResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          encountersApi.list(params.patientId).catch(() => []),
+        ]);
+
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Patient',
+          lastName: '',
+          dateOfBirth: '1950-01-01',
+          gender: 'Unknown',
+        };
+
+        const encounters = Array.isArray(encountersResp)
+          ? encountersResp
+          : (encountersResp as any)?.encounters ?? [];
+
+        setData({
+          patient: summary?.patient || fallbackPatient,
+          encounters,
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading clinical visit history...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, encounters } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: patient.primaryDoctor ?? 'Assigned Clinician',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: patient.currentYearStatus ?? 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  const emergencyVisits = encounters.filter((e: any) => e.type === 'EMERGENCY');
+  const outpatientVisits = encounters.filter((e: any) => e.type !== 'EMERGENCY');
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold">Clinical Visit History</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {encounters.length} recorded clinical encounters for {patient.firstName} {patient.lastName}.
+          </p>
+        </div>
+
+        {/* Summary stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <Stethoscope className="h-6 w-6 text-blue-600" />
+                <div>
+                  <p className="text-2xl font-bold text-blue-900">{outpatientVisits.length}</p>
+                  <p className="text-xs text-blue-700 font-medium">Outpatient Visits</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-red-50 border-red-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+                <div>
+                  <p className="text-2xl font-bold text-red-900">{emergencyVisits.length}</p>
+                  <p className="text-xs text-red-700 font-medium">Emergency Visits</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-emerald-50 border-emerald-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <ActivitySquare className="h-6 w-6 text-emerald-600" />
+                <div>
+                  <p className="text-2xl font-bold text-emerald-900">{encounters.length}</p>
+                  <p className="text-xs text-emerald-700 font-medium">Total Encounters</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Encounter list */}
+        {encounters.length === 0 ? (
+          <Card>
+            <CardContent className="pt-10 pb-10 text-center text-muted-foreground">
+              <ActivitySquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">No clinical encounters recorded yet.</p>
+              <p className="text-sm mt-1">Encounters will appear here as they are logged.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">All Encounters</h2>
+            {encounters.map((enc: any) => {
+              const cfg = encounterTypeConfig[enc.type] ?? encounterTypeConfig.OUTPATIENT;
+              const Icon = cfg.icon;
+              return (
+                <Card key={enc.id} className={cn('card-hover border', enc.type === 'EMERGENCY' && 'border-red-200')}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className={cn('p-2 rounded-lg border', cfg.color)}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-base">{enc.reason ?? enc.type}</h3>
+                          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Stethoscope className="h-3.5 w-3.5" />
+                              {enc.providerName ?? 'Clinician'}
+                            </span>
+                            {enc.location && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="h-3.5 w-3.5" />
+                                {enc.location}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <Badge variant="outline" className={cn('text-xs border', cfg.color)}>{cfg.label}</Badge>
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          {enc.startedAt ? formatDate(enc.startedAt) : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  {enc.notes && (
+                    <CardContent className="pt-0">
+                      <div className="rounded-lg bg-muted/40 border border-muted px-4 py-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Clinical Notes</p>
+                        <p className="text-sm">{enc.notes}</p>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 italic">
+            This list shows clinical encounters recorded in CareGuardian. For a complete hospital discharge history,
+            consult the patient&apos;s full medical records.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { CheckCircle, XCircle, AlertTriangle, PlusCircle, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi } from '@/lib/api';
+import { cn, formatDate, timeAgo } from '@/lib/utils';
+
+const evidenceItems = [
+  {
+    id: 'ev-001',
+    claim: 'Medication adherence has decreased significantly',
+    detail: 'Adherence dropped from 95% (baseline) to 72% over the past 2 weeks',
+    strength: 'Strong',
+    sourceType: 'CARE_CIRCLE',
+    items: [
+      { source: 'Sarah Miller (Daughter)', date: '2026-09-10', text: 'Dad forgot his evening medicine yesterday.', status: 'REPORTED' },
+      { source: 'Maria Pelletier (Caregiver)', date: '2026-09-07', text: 'Morning medication was still in the pill box when I arrived.', status: 'REPORTED' },
+      { source: 'Medication Log', date: '2026-09-10', text: '72% adherence rate (past 14 days)', status: 'MEASURED' },
+    ],
+  },
+  {
+    id: 'ev-002',
+    claim: 'Mobility is well below personal baseline',
+    detail: '1,950 steps/day vs baseline of 3,100 steps/day — 37% decline',
+    strength: 'Strong',
+    sourceType: 'CARE_CIRCLE',
+    items: [
+      { source: 'Meena Iyer (Neighbor)', date: '2026-09-08', text: "He hasn't been taking his normal morning walk all week.", status: 'REPORTED' },
+      { source: 'Activity Data', date: '2026-09-10', text: '1,950 avg steps/day (7-day average)', status: 'MEASURED' },
+    ],
+  },
+  {
+    id: 'ev-003',
+    claim: 'Cognitive observations increased significantly above baseline',
+    detail: '4 confusion/memory-related observations in 2 weeks vs rare baseline',
+    strength: 'Moderate',
+    sourceType: 'CARE_CIRCLE',
+    items: [
+      { source: 'Sarah Miller (Daughter)', date: '2026-09-10', text: 'He seemed confused about what day it was.', status: 'REPORTED' },
+      { source: 'David Miller (Son)', date: '2026-09-08', text: 'He repeated the same question about my work three times in 10 minutes.', status: 'REPORTED' },
+      { source: 'Rahul Mehta (Friend)', date: '2026-09-09', text: 'He seemed more confused than usual.', status: 'REPORTED' },
+    ],
+  },
+  {
+    id: 'ev-004',
+    claim: 'Lab results support metabolic concern',
+    detail: 'HbA1c 7.8% — above target range. Creatinine mildly elevated.',
+    strength: 'Strong',
+    sourceType: 'CLINICAL',
+    items: [
+      { source: 'Clinical Lab', date: '2026-08-20', text: 'HbA1c: 7.8% (target <7.0%). Creatinine: 1.3 mg/dL (upper normal).', status: 'MEASURED' },
+    ],
+  },
+];
+
+const strengthConfig: Record<string, { label: string; color: string }> = {
+  Strong: { label: 'Strong Evidence', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  Moderate: { label: 'Moderate Evidence', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  Weak: { label: 'Weak Evidence', color: 'bg-gray-50 text-gray-600 border-gray-200' },
+};
+
+const statusConfig: Record<string, { label: string; color: string }> = {
+  REPORTED: { label: 'Reported Observation', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  MEASURED: { label: 'Measured', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  VERIFIED: { label: 'Clinically Verified', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+};
+
+export default function EvidencePage({ params }: { params: { patientId: string } }) {
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, string>>({});
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const summary = await patientsApi.summary(params.patientId).catch(() => null);
+        setData({
+          patient: summary?.patient,
+          evidence: evidenceItems,
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading evidence...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, evidence } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  const setFeedback = (id: string, verdict: string) => {
+    setFeedbackMap(prev => ({ ...prev, [id]: verdict }));
+  };
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold">Evidence Explorer</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Every AI signal has evidence. Review the source, date, and original text behind each finding.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm font-semibold text-blue-800">About This View</p>
+          <p className="text-sm text-blue-700 mt-1">
+            AI signals are always linked to their supporting evidence. Original observations are never altered.
+            Each item shows its source, status, and confidence level for full transparency.
+          </p>
+        </div>
+
+        <div className="space-y-5">
+          {evidence.map((ev: any) => {
+            const strCfg = strengthConfig[ev.strength] ?? strengthConfig.Moderate;
+            const feedback = feedbackMap[ev.id];
+            return (
+              <Card key={ev.id} className="card-hover">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-sm">AI Signal</h3>
+                        <span className={cn('rounded-full border px-2 py-0.5 text-xs font-medium', strCfg.color)}>
+                          {strCfg.label}
+                        </span>
+                        {feedback && (
+                          <span className={cn('rounded-full border px-2 py-0.5 text-xs font-medium',
+                            feedback === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-600'
+                          )}>
+                            {feedback === 'confirmed' ? '✓ Confirmed' : feedback === 'incorrect' ? '✗ Marked incorrect' : `Monitoring`}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-base font-semibold mt-1">{ev.claim}</p>
+                      <p className="text-sm text-muted-foreground">{ev.detail}</p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                    Evidence ({ev.items.length} item{ev.items.length > 1 ? 's' : ''})
+                  </p>
+                  <div className="space-y-3">
+                    {ev.items.map((item: any, i: number) => {
+                      const stCfg = statusConfig[item.status] ?? statusConfig.REPORTED;
+                      return (
+                        <div key={i} className="rounded-lg border border-border bg-background p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                <span className="text-xs font-semibold text-foreground">{item.source}</span>
+                                <span className={cn('rounded-full border px-1.5 py-0.5 text-[10px] font-medium', stCfg.color)}>
+                                  {stCfg.label}
+                                </span>
+                              </div>
+                              <p className="text-sm text-foreground italic">&ldquo;{item.text}&rdquo;</p>
+                            </div>
+                            <p className="text-xs text-muted-foreground flex-shrink-0 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDate(item.date)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Clinician feedback */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Your feedback on this signal:</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {['confirmed', 'monitoring', 'not_relevant', 'incorrect'].map((verdict) => (
+                        <Button
+                          key={verdict}
+                          size="sm"
+                          variant={feedbackMap[ev.id] === verdict ? 'default' : 'outline'}
+                          onClick={() => setFeedback(ev.id, verdict)}
+                          className="text-xs"
+                        >
+                          {verdict === 'confirmed' ? '✓ Confirmed' :
+                           verdict === 'monitoring' ? '👁 Monitoring' :
+                           verdict === 'not_relevant' ? 'Not Relevant' : '✗ Incorrect'}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle, Clock, TrendingDown } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, medicationsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { cn, formatDate } from '@/lib/utils';
+
+const signalConfig: Record<string, { label: string; color: string; icon: string }> = {
+  ADHERENCE_DECLINE: { label: 'Adherence ↓', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: '📉' },
+  RECENT_CHANGE: { label: 'Recent Change', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: '🔄' },
+  POTENTIAL_ALLERGY_CONFLICT: { label: '⚠️ Allergy Conflict', color: 'bg-red-50 text-red-700 border-red-200', icon: '⚠️' },
+  POTENTIAL_INTERACTION: { label: 'Potential Interaction', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: '⚡' },
+};
+
+export default function MedicationsPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, medsResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          medicationsApi.list(params.patientId).catch(() => null),
+        ]);
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+
+        setData({
+          patient: summary?.patient || fallbackPatient,
+          meds: medsResp || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading medications...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, meds } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  const criticalMeds = meds.filter((m: any) => m.signals?.includes('POTENTIAL_ALLERGY_CONFLICT'));
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-5 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Medications</h1>
+            <p className="text-sm text-muted-foreground mt-1">{meds.length} active medications</p>
+          </div>
+        </div>
+
+        {/* Critical alert */}
+        {criticalMeds.length > 0 && (
+          <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-red-800">⚠️ Potential Allergy Conflict — Requires Immediate Review</p>
+              <p className="text-sm text-red-700 mt-1">
+                Amoxicillin (penicillin-class) is currently prescribed. A 2025 record documents penicillin allergy (reaction: rash).
+                The 2026 outpatient record documents no known drug allergies. This conflict must be resolved.
+              </p>
+              <Button size="sm" variant="outline" className="mt-2 border-red-300 text-red-700 hover:bg-red-100">
+                Review Conflict
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {meds.map((med: any) => (
+            <Card key={med.id} className={cn('card-hover', med.signals?.includes('POTENTIAL_ALLERGY_CONFLICT') && 'border-red-300')}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-base">{med.name}</h3>
+                      <span className="text-sm text-muted-foreground">{med.genericName}</span>
+                      <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                        med.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-600'
+                      )}>
+                        {med.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                      <span>{med.dosage}</span>
+                      <span>·</span>
+                      <span>{med.frequency}</span>
+                      <span>·</span>
+                      <span>Started {formatDate(med.startedAt)}</span>
+                    </div>
+                    {med.prescribedBy && (
+                      <p className="text-xs text-muted-foreground mt-1">Prescribed by {med.prescribedBy}</p>
+                    )}
+                    {med.recentChange && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-blue-700">
+                        <Clock className="h-3.5 w-3.5" />
+                        Changed {formatDate(med.recentChange.date)} — {med.recentChange.description}
+                      </div>
+                    )}
+                    {med.signals && med.signals.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {med.signals.map((signal: string) => {
+                          const sc = signalConfig[signal] ?? { label: signal, color: 'bg-gray-50 text-gray-600 border-gray-200', icon: '' };
+                          return (
+                            <span key={signal} className={cn('rounded-full border px-2.5 py-0.5 text-xs font-medium', sc.color)}>
+                              {sc.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Adherence */}
+                  {med.adherence !== null && med.adherence !== undefined && (
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-muted-foreground mb-1">Adherence</p>
+                      <p className={cn('text-2xl font-bold', med.adherence < 80 ? 'text-red-600' : med.adherence < 90 ? 'text-orange-600' : 'text-emerald-600')}>
+                        {med.adherence}%
+                      </p>
+                      {med.baselineAdherence && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground justify-end">
+                          <TrendingDown className="h-3 w-3 text-red-500" />
+                          <span>Baseline {med.baselineAdherence}%</span>
+                        </div>
+                      )}
+                      <div className="mt-2 h-1.5 w-24 rounded-full bg-gray-100 overflow-hidden ml-auto">
+                        <div
+                          className={cn('h-full rounded-full', med.adherence < 80 ? 'bg-red-400' : med.adherence < 90 ? 'bg-orange-400' : 'bg-emerald-400')}
+                          style={{ width: `${med.adherence}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <p className="text-xs text-muted-foreground italic text-center">
+          Medication signals are for clinical review only. Never alter medications without clinician assessment.
+        </p>
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { Info, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, missingInfoApi } from '@/lib/api';
+import { cn, formatDate } from '@/lib/utils';
+
+const severityConfig: Record<string, { label: string; color: string }> = {
+  REVIEW: { label: 'Needs Review', color: 'border-yellow-200 text-yellow-700 bg-yellow-50' },
+  ATTENTION: { label: 'Attention', color: 'border-blue-200 text-blue-700 bg-blue-50' },
+  CRITICAL: { label: 'Critical', color: 'border-red-200 text-red-700 bg-red-50' },
+};
+
+export default function MissingInfoPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, missingResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          missingInfoApi.list(params.patientId).catch(() => null),
+        ]);
+        setData({
+          patient: summary?.patient,
+          gaps: missingResp?.data || [],
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading missing information...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, gaps } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-5 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold">Information Gaps</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Important clinical information that is missing, outdated, or incomplete.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 flex items-start gap-3">
+          <Info className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-yellow-800">{gaps.filter((g: any) => g.status === 'OPEN').length} Open Gaps Identified</p>
+            <p className="text-sm text-yellow-700 mt-1">
+              These gaps may affect the completeness of AI analysis and clinical decision-making.
+              Each gap can be reviewed, dismissed, or actioned.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {gaps.map((gap: any) => {
+            const sev = severityConfig[gap.severity] ?? severityConfig.ATTENTION;
+            return (
+              <Card key={gap.id} className="card-hover">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg border flex-shrink-0', sev.color)}>
+                        <AlertTriangle className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-sm">{gap.category.replace(/_/g, ' ')}</h3>
+                          <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', sev.color)}>
+                            {sev.label}
+                          </span>
+                          <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                            gap.status === 'OPEN' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600'
+                          )}>
+                            {gap.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{gap.description}</p>
+                        {gap.recommendation && (
+                          <div className="mt-2 flex items-start gap-1.5 text-xs text-blue-700">
+                            <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                            <span>{gap.recommendation}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-muted-foreground">Detected {formatDate(gap.detectedAt)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <Button size="sm">Request Information</Button>
+                    <Button size="sm" variant="outline">Mark Reviewed</Button>
+                    <Button size="sm" variant="ghost">Not Relevant</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import { Clock, User } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, observationsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { cn, formatDate, timeAgo } from '@/lib/utils';
+
+const categoryIcons: Record<string, string> = {
+  CONFUSION: '🧠', FALL: '⚠️', NEAR_FALL: '⚠️', APPETITE: '🍽️',
+  SLEEP: '😴', MOBILITY: '🚶', MOOD: '💬', PAIN: '🩺', MEDICATION: '💊', OTHER: '💬',
+};
+
+const statusStyle: Record<string, string> = {
+  REPORTED: 'bg-blue-50 text-blue-700 border-blue-200',
+  MEASURED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  CLINICALLY_VERIFIED: 'bg-purple-50 text-purple-700 border-purple-200',
+};
+
+export default function ObservationsPage({ params }: { params: { patientId: string } }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, obsResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          observationsApi.list(params.patientId).catch(() => []),
+        ]);
+
+        // Normalise API response → UI shape
+        const rawObs: any[] = Array.isArray(obsResp) ? obsResp : (obsResp as any)?.observations ?? [];
+        const reports = rawObs.map((o: any) => ({
+          id: o.id,
+          reporter: o.reportedBy?.name ?? o.user?.name ?? (o.sourceType === 'CLINICIAN' ? 'Clinician' : o.sourceType === 'PATIENT' ? 'Patient' : 'Care Team'),
+          relationship: o.reportedBy?.role ?? (o.sourceType === 'CLINICIAN' ? 'Clinical Staff' : o.sourceType === 'PATIENT' ? 'Patient (Self)' : 'Caregiver'),
+          avatar: (o.reportedBy?.name ?? o.user?.name ?? o.sourceType ?? 'C')[0].toUpperCase(),
+          text: o.rawText ?? o.text ?? '',
+          date: o.occurredAt ?? o.observedAt ?? o.createdAt ?? new Date().toISOString(),
+          category: o.category ?? 'OTHER',
+          status: o.verificationStatus ?? o.status ?? 'REPORTED',
+        }));
+
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+
+        setData({
+          patient: summary?.patient || fallbackPatient,
+          reports,
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading observations...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, reports } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-5 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold">Observations</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            All reported observations from the Care Circle and clinical records. Original text preserved.
+          </p>
+        </div>
+        <div className="space-y-3">
+          {reports.map((r: any) => {
+            const icon = categoryIcons[r.category] ?? '💬';
+            const stStyle = statusStyle[r.status] ?? statusStyle.REPORTED;
+            return (
+              <Card key={r.id} className="card-hover">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm flex-shrink-0">
+                      {r.avatar}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm">{r.reporter}</span>
+                        <span className="text-xs text-muted-foreground">— {r.relationship}</span>
+                        <span className="ml-auto text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> {timeAgo(r.date)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-foreground italic">&ldquo;{r.text}&rdquo;</p>
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className="text-sm">{icon}</span>
+                        <Badge variant="secondary" className="text-xs">{r.category}</Badge>
+                        <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', stStyle)}>
+                          Reported Observation
+                        </span>
+                        <p className="ml-auto text-xs text-muted-foreground">{formatDate(r.date)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground italic text-center">
+          Original observations are never altered. AI interpretation is stored separately.
+        </p>
+      </div>
+    </>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  ChevronLeft, ChevronRight, Calendar, AlertTriangle, CheckCircle, Info,
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { YearTimeline, YearStatusLegend } from '@/components/timeline/year-timeline';
+import { HealthMetricCard, StatusBadge } from '@/components/health/health-metric-card';
+import { patientsApi, timelineApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { cn, formatDate, statusConfig, type YearStatus, eventTypeConfig } from '@/lib/utils';
+
+export default function TimelinePage({ params }: { params: { patientId: string } }) {
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [summary, timelineResp] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          timelineApi.yearTimeline(params.patientId).catch(() => null),
+        ]);
+        const defaultTimeline = { currentYear: 2026, years: [{ year: 2026, label: 'Current', status: 'ACTIVE', summary: 'Active' }] };
+        const fetchedTimeline = timelineResp || defaultTimeline;
+        
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+
+        let timelineToUse = fetchedTimeline;
+        
+        // If the backend returns an empty timeline (no events), override the status to match 
+        // the mock patient's risk profile so High/Critical patients don't show up as 'Good'/'Stable'.
+        const totalEvents = timelineToUse.years?.reduce((acc: number, y: any) => acc + (y.events?.length || 0), 0) || 0;
+        if (totalEvents === 0 && fallbackPatient?.risk && timelineToUse.years?.length > 0) {
+          const riskToStatus: Record<string, string> = { Critical: 'CRITICAL', High: 'CONCERN', Moderate: 'WATCH', Stable: 'STABLE' };
+          const mockStatus = riskToStatus[fallbackPatient.risk] || 'ACTIVE';
+          
+          timelineToUse = {
+            ...timelineToUse,
+            years: timelineToUse.years.map((y: any, idx: number) => {
+              // Override the most recent year (index 0) with the mock severity
+              if (idx === 0) {
+                return {
+                  ...y,
+                  status: mockStatus,
+                  label: mockStatus.charAt(0) + mockStatus.slice(1).toLowerCase(),
+                  summary: `Patient is currently marked as ${fallbackPatient.risk} risk.`,
+                  reasons: fallbackPatient.conditions || y.reasons || [],
+                };
+              }
+              return y;
+            })
+          };
+        }
+
+        const yearDetailMap: Record<number, any> = {};
+        if (timelineToUse.years) {
+          timelineToUse.years.forEach((y: any) => {
+            yearDetailMap[y.year] = y;
+          });
+        }
+
+        setData({
+          patient: summary?.patient || fallbackPatient,
+          timeline: timelineToUse,
+          yearDetail: yearDetailMap,
+        });
+        setSelectedYear(timelineToUse.currentYear);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading timeline...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, timeline, yearDetail } = data;
+  const yearData = yearDetail[selectedYear];
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: 'Dr. Elena Chen',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: 5,
+    status: 'ACTIVE',
+    currentYearStatus: timeline?.years?.find((y: any) => y.year === timeline.currentYear)?.status || 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  const selectedYearMeta = timeline?.years?.find((y: any) => y.year === selectedYear);
+  const statusCfg = selectedYearMeta ? statusConfig[selectedYearMeta.status as YearStatus] : null;
+
+  const prevYear = () => {
+    const idx = timeline?.years?.findIndex((y: any) => y.year === selectedYear) ?? -1;
+    if (idx > 0) setSelectedYear(timeline.years[idx - 1].year);
+  };
+  const nextYear = () => {
+    const idx = timeline?.years?.findIndex((y: any) => y.year === selectedYear) ?? -1;
+    if (idx !== -1 && idx < timeline.years.length - 1) setSelectedYear(timeline.years[idx + 1].year);
+  };
+
+  const metrics = yearData?.metrics
+    ? Object.entries(yearData.metrics as Record<string, unknown>)
+    : [];
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-6 animate-fade-in">
+        {/* Page header */}
+        <div>
+          <h1 className="text-2xl font-bold">Health Timeline</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            A year-by-year view of important health events, changes, and overall status.
+          </p>
+        </div>
+
+        {/* Timeline + legend */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Year-by-Year Overview</CardTitle>
+              <YearStatusLegend />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="flex flex-col lg:flex-row gap-6 lg:items-center">
+              <div className="flex-1 min-w-0 overflow-x-auto">
+                <YearTimeline
+                  years={timeline?.years || []}
+                  selectedYear={selectedYear}
+                  onSelectYear={setSelectedYear}
+                />
+              </div>
+              
+              <div className="w-full lg:w-64 flex-shrink-0 flex flex-col items-center justify-center p-6 border rounded-xl bg-slate-50">
+                <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Risk Score</p>
+                <div className={cn(
+                  "relative flex items-center justify-center h-24 w-24 rounded-full border-[6px] bg-white shadow-sm",
+                  timeline?.currentYear === selectedYear 
+                    ? (statusCfg?.bg?.includes('red') ? 'border-red-500' 
+                       : statusCfg?.bg?.includes('orange') ? 'border-orange-500'
+                       : statusCfg?.bg?.includes('yellow') ? 'border-yellow-500'
+                       : 'border-emerald-500')
+                    : 'border-slate-300'
+                )}>
+                  <span className="text-3xl font-bold text-slate-800">
+                    {timeline?.currentYear === selectedYear 
+                      ? (statusCfg?.bg?.includes('red') ? '88' 
+                         : statusCfg?.bg?.includes('orange') ? '65'
+                         : statusCfg?.bg?.includes('yellow') ? '42'
+                         : '12')
+                      : '--'
+                    }
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-4 text-center">
+                  {timeline?.currentYear === selectedYear 
+                      ? (statusCfg?.bg?.includes('red') ? 'High risk of acute episode.' 
+                         : statusCfg?.bg?.includes('orange') ? 'Elevated risk of deterioration.'
+                         : statusCfg?.bg?.includes('yellow') ? 'Moderate monitoring advised.'
+                         : 'Low risk. Generally stable.')
+                      : 'Score only available for current year.'
+                  }
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Selected year detail */}
+        {selectedYearMeta && (
+          <div className="space-y-5">
+            {/* Year header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <Button variant="outline" size="icon" onClick={prevYear} disabled={!timeline?.years?.length || selectedYear === timeline.years[0].year}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-3xl font-bold">{selectedYear}</h2>
+                    {statusCfg && (
+                      <StatusBadge status={selectedYearMeta.status as YearStatus} size="lg" />
+                    )}
+                    {selectedYear === timeline?.currentYear && (
+                      <Badge variant="secondary">Current Year</Badge>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground text-sm mt-1 max-w-xl">
+                    {selectedYearMeta.summary}
+                  </p>
+                </div>
+                <Button variant="outline" size="icon" onClick={nextYear} disabled={!timeline?.years?.length || selectedYear === timeline.years[timeline.years.length - 1].year}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => timeline?.currentYear && setSelectedYear(timeline.currentYear)}>
+                Jump to current year
+              </Button>
+            </div>
+
+            {/* Why this status */}
+            {selectedYearMeta.reasons && (
+              <div className={cn('rounded-xl border p-4', statusCfg?.bg, statusCfg?.border)}>
+                <p className={cn('text-sm font-semibold mb-2 flex items-center gap-2', statusCfg?.text)}>
+                  <Info className="h-4 w-4" />
+                  Why is {selectedYear} marked {selectedYearMeta.label}?
+                </p>
+                <ul className="space-y-1">
+                  {selectedYearMeta.reasons.map((r: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0', statusCfg?.text?.replace('text-', 'bg-'))} />
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-muted-foreground mt-3 italic">
+                  This status represents the documented level of health change, not a medical diagnosis.
+                </p>
+              </div>
+            )}
+
+            {/* Year metrics */}
+            {yearData?.metrics && metrics.length > 0 && (
+              <div>
+                <h3 className="text-base font-semibold mb-3">Key Metrics — {selectedYear}</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  {metrics.map(([key, m]) => {
+                    const metric = m as {
+                      current: string | number; baseline?: string | number;
+                      baselineLabel?: string; change?: number; trend?: string; unit?: string;
+                    };
+                    return (
+                      <HealthMetricCard
+                        key={key}
+                        label={key.replace(/([A-Z])/g, ' $1').trim()}
+                        current={metric.current}
+                        baseline={metric.baseline}
+                        baselineLabel={metric.baselineLabel}
+                        change={metric.change}
+                        trend={metric.trend as 'up' | 'down' | 'neutral'}
+                        unit={metric.unit}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Events timeline */}
+            {yearData?.events && (
+              <div>
+                <h3 className="text-base font-semibold mb-3">Events — {selectedYear}</h3>
+                <div className="relative">
+                  {/* Vertical line */}
+                  <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border" />
+                  <div className="space-y-3">
+                    {(yearData.events as Array<{
+                      id: string; type: string; date: string; description: string;
+                      reporter?: string; relationship?: string; source: string; status: string; icon: string;
+                    }>).map((event) => {
+                      const evCfg = eventTypeConfig[event.type] ?? { icon: '•', label: event.type, color: 'text-gray-600' };
+                      return (
+                        <div key={event.id} className="flex gap-4 items-start">
+                          {/* Timeline dot */}
+                          <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full border-2 border-border bg-white flex-shrink-0 text-lg">
+                            {event.icon}
+                          </div>
+                          {/* Content */}
+                          <div className="flex-1 rounded-xl border bg-card p-4 card-hover mb-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={cn('text-xs font-semibold', evCfg.color)}>
+                                    {evCfg.label}
+                                  </span>
+                                  <span className={cn(
+                                    'rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
+                                    event.status === 'VERIFIED'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                                  )}>
+                                    {event.status === 'VERIFIED' ? '✓ Verified' : 'Reported'}
+                                  </span>
+                                </div>
+                                <p className="text-sm font-medium mt-1">{event.description}</p>
+                                {event.reporter && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    <span className="font-medium">{event.reporter}</span>
+                                    {event.relationship && ` · ${event.relationship}`}
+                                    {' · '}{event.source}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(event.date).toLocaleDateString('en-IN', {
+                                    day: 'numeric', month: 'short', year: 'numeric',
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Care Circle reports */}
+            {yearData?.careCircleReports && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold">Care Circle Reports</h3>
+                  <Link href={`/clinician/patients/${params.patientId}/care-circle`}>
+                    <Button variant="ghost" size="sm">View All</Button>
+                  </Link>
+                </div>
+                <div className="space-y-3">
+                  {(yearData.careCircleReports as Array<{
+                    id: string; reporter: string; relationship: string; avatar: string;
+                    text: string; date: string; category: string; status: string;
+                  }>).map((report) => (
+                    <div key={report.id} className="flex gap-4 rounded-xl border bg-card p-4 card-hover">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-semibold flex-shrink-0">
+                        {report.avatar}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold">{report.reporter}</span>
+                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">{report.relationship}</span>
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {new Date(report.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground mt-1.5 italic">&ldquo;{report.text}&rdquo;</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="secondary" className="text-xs">{report.category}</Badge>
+                          <Badge variant="outline" className="text-xs">Reported Observation</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Clinical takeaways */}
+            {yearData?.clinicalTakeaways && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-primary" />
+                    Clinical Takeaways — {selectedYear}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {(yearData.clinicalTakeaways as string[]).map((t: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2.5 text-sm">
+                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Placeholder for years with no detail */}
+            {!yearData && (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <Calendar className="h-8 w-8 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">Detailed year view for {selectedYear} loading…</p>
+                  <p className="text-xs mt-1">Connect to the API backend to load historical data.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Share2, Network, Heart, Pill, Brain, Activity, ShieldAlert, Sparkles, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+
+export default function PatientHealthGraphPage() {
+  const params = useParams();
+  const patientId = params.patientId as string;
+  const [patient, setPatient] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedNode, setSelectedNode] = useState<any>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await patientsApi.getById(patientId);
+        setPatient(res?.data || res || null);
+      } catch (e) {
+        console.error('Failed to load patient:', e);
+        setPatient(MOCK_PATIENTS_MAP[patientId] ?? null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [patientId]);
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!patient) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        Patient not found.
+      </div>
+    );
+  }
+
+  const nodes = [
+    { id: 'patient', label: `${patient.firstName} ${patient.lastName}`, type: 'patient', color: 'bg-primary text-white border-primary', x: 350, y: 180, icon: Heart, desc: 'Central Patient Identity' },
+    { id: 'cond1', label: 'Heart Failure (HFpEF)', type: 'condition', color: 'bg-rose-100 text-rose-800 border-rose-300', x: 180, y: 80, icon: Activity, desc: 'Active primary cardiac condition' },
+    { id: 'cond2', label: 'Type 2 Diabetes', type: 'condition', color: 'bg-amber-100 text-amber-800 border-amber-300', x: 520, y: 80, icon: Activity, desc: 'Active metabolic condition' },
+    { id: 'med1', label: 'Furosemide 40mg', type: 'medication', color: 'bg-blue-100 text-blue-800 border-blue-300', x: 140, y: 280, icon: Pill, desc: 'Diuretic for fluid overload' },
+    { id: 'med2', label: 'Empagliflozin 10mg', type: 'medication', color: 'bg-blue-100 text-blue-800 border-blue-300', x: 350, y: 320, icon: Pill, desc: 'SGLT2 inhibitor for heart failure' },
+    { id: 'med3', label: 'Spironolactone 25mg', type: 'medication', color: 'bg-blue-100 text-blue-800 border-blue-300', x: 560, y: 280, icon: Pill, desc: 'Aldosterone antagonist' },
+    { id: 'obs1', label: 'Weight Spike +3.4kg', type: 'observation', color: 'bg-red-100 text-red-900 border-red-400 font-bold', x: 120, y: 180, icon: ShieldAlert, desc: 'Detected anomaly in telemetry' },
+    { id: 'care1', label: 'Caregiver: Karthik', type: 'caregiver', color: 'bg-emerald-100 text-emerald-800 border-emerald-300', x: 550, y: 180, icon: Brain, desc: 'Primary daily observer' },
+  ];
+
+  const links = [
+    { from: 'patient', to: 'cond1', label: 'diagnosed with' },
+    { from: 'patient', to: 'cond2', label: 'diagnosed with' },
+    { from: 'cond1', to: 'med1', label: 'managed by' },
+    { from: 'cond1', to: 'med2', label: 'prescribed' },
+    { from: 'cond1', to: 'obs1', label: 'triggers' },
+    { from: 'cond2', to: 'med2', label: 'treated by' },
+    { from: 'cond1', to: 'med3', label: 'prescribed' },
+    { from: 'patient', to: 'care1', label: 'supported by' },
+    { from: 'care1', to: 'obs1', label: 'reported' },
+  ];
+
+  return (
+    <div>
+      <PatientHeader patient={patient} />
+      <div className="p-8 max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Network className="w-6 h-6 text-primary" />
+              Longitudinal Health Graph
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              AI-synthesized entity relationships connecting diseases, medications, anomalies, and caregiver reports.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setSelectedNode(null)} className="gap-1.5">
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reset View
+            </Button>
+            <Button size="sm" className="gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Run Graph Inference
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Interactive Graph Canvas */}
+          <Card className="lg:col-span-2 overflow-hidden border">
+            <CardHeader className="py-3 px-5 border-b bg-slate-50/50 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Semantic Entity Graph</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-400 mr-1" /> Conditions
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 mx-1" /> Medications
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 mx-1" /> Care Circle
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 relative bg-slate-900/5 min-h-[420px] flex items-center justify-center">
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 700 400">
+                {links.map((link, idx) => {
+                  const src = nodes.find(n => n.id === link.from);
+                  const dst = nodes.find(n => n.id === link.to);
+                  if (!src || !dst) return null;
+                  return (
+                    <g key={idx}>
+                      <line
+                        x1={src.x}
+                        y1={src.y}
+                        x2={dst.x}
+                        y2={dst.y}
+                        stroke="#94a3b8"
+                        strokeWidth="1.5"
+                        strokeDasharray={link.label === 'triggers' || link.label === 'reported' ? '4,4' : undefined}
+                      />
+                    </g>
+                  );
+                })}
+              </svg>
+
+              <div className="relative w-full h-[400px]">
+                {nodes.map((node) => {
+                  const Icon = node.icon;
+                  const isSelected = selectedNode?.id === node.id;
+                  return (
+                    <button
+                      key={node.id}
+                      onClick={() => setSelectedNode(node)}
+                      style={{ left: `${node.x}px`, top: `${node.y}px`, transform: 'translate(-50%, -50%)' }}
+                      className={`absolute px-3 py-2 rounded-xl border shadow-sm transition-all duration-150 flex items-center gap-2 cursor-pointer ${node.color} ${
+                        isSelected ? 'ring-4 ring-primary/40 scale-105 z-20 shadow-md' : 'hover:scale-105 z-10'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="text-xs font-semibold whitespace-nowrap">{node.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Node Inspector */}
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Share2 className="w-4 h-4 text-primary" />
+                  Entity Inspector
+                </CardTitle>
+                <CardDescription>
+                  Click any node in the graph to inspect knowledge provenance and causal pathways.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {selectedNode ? (
+                  <div className="space-y-4">
+                    <div>
+                      <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Entity Type</span>
+                      <p className="text-sm font-bold capitalize mt-0.5">{selectedNode.type}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Identifier / Name</span>
+                      <p className="text-sm font-semibold mt-0.5">{selectedNode.label}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Clinical Significance</span>
+                      <p className="text-xs text-muted-foreground mt-1 bg-slate-50 p-2.5 rounded-lg border">
+                        {selectedNode.desc}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Related Links</span>
+                      <div className="space-y-1 mt-1.5">
+                        {links
+                          .filter(l => l.from === selectedNode.id || l.to === selectedNode.id)
+                          .map((l, i) => (
+                            <div key={i} className="text-xs p-1.5 rounded bg-white border flex items-center justify-between">
+                              <span className="font-mono text-muted-foreground text-[11px]">{l.label}</span>
+                              <span className="font-medium text-foreground">{l.from === selectedNode.id ? l.to : l.from}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground text-xs">
+                    Select any entity in the graph (e.g. <span className="text-foreground font-medium">Weight Spike</span> or <span className="text-foreground font-medium">Furosemide</span>) to view clinical relationships.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI Graph Confidence</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-1 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Ontology Alignment:</span>
+                  <span className="font-semibold text-emerald-600">99.2% (SNOMED-CT)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Causal Association:</span>
+                  <span className="font-semibold text-primary">High Confidence</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Care Circle Validation:</span>
+                  <span className="font-semibold text-slate-900">Confirmed (Karthik S.)</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { FileText, Plus, User, Clock, Stethoscope, CheckCircle2, ShieldCheck, Filter } from 'lucide-react';
+
+interface ClinicalNote {
+  id: string;
+  date: string;
+  author: string;
+  authorRole: string;
+  type: string;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+  signed: boolean;
+}
+
+const PATIENT_NOTES: Record<string, ClinicalNote[]> = {
+  '66c67bf7-f6e3-478e-b972-20d7d25b4958': [
+    { id:'n1', date:'2026-09-08T10:30:00Z', author:'Dr. Arjun Nair', authorRole:'General Physician', type:'Quarterly Diabetes Review', signed:true,
+      subjective:'Ravi Kumar reports he has been checking his blood sugars daily. Wife Nalini states he sometimes skips medications. He developed a dental infection 2 weeks ago and was started on Amoxicillin by the dentist. CRITICAL: Ravi has a known penicillin allergy (rash reaction documented). Amoxicillin is a penicillin-class antibiotic.',
+      objective:'BP: 132/82 mmHg. Weight: 72.1 kg. HbA1c 7.8% (up from 7.2%). FPG: 148 mg/dL. Dental abscess partially resolved. No acute allergic reaction noted currently.',
+      assessment:'Suboptimally controlled T2DM. Hypertension well controlled. ALLERGY CONFLICT: Amoxicillin prescribed against documented penicillin allergy — requires urgent review.',
+      plan:'1. URGENT: Discontinue Amoxicillin. Refer to dentist for alternative antibiotic (Azithromycin). Document allergy conflict in EHR.\n2. Increase Metformin from 500mg to 1000mg BD.\n3. Caregiver education on medication adherence tracking.\n4. Repeat HbA1c in 3 months.' },
+    { id:'n2', date:'2026-07-15T09:00:00Z', author:'Dr. Arjun Nair', authorRole:'General Physician', type:'Blood Pressure Follow-up', signed:true,
+      subjective:'Patient well. No chest pain or headaches. Compliant with Lisinopril.',
+      objective:'BP: 128/78 mmHg bilaterally. HR: 72 bpm. Peripheral pulses normal.',
+      assessment:'Hypertension well controlled on current regimen.',
+      plan:'Continue Lisinopril 10mg once daily. Dietary sodium restriction advised. Review in 3 months.' },
+  ],
+  '33ec2506-2cfd-437d-8c66-defd67159f29': [
+    { id:'n1', date:'2026-09-05T11:00:00Z', author:'Dr. Arjun Nair', authorRole:'General Physician', type:'Rheumatology Review', signed:true,
+      subjective:'Sunita Balasubramanian reports increased bilateral hand joint pain, rating 7/10. Morning stiffness lasting >1 hour. Functional limitation noted in grip and fine motor tasks.',
+      objective:'Swollen MCP and PIP joints bilaterally. ESR: 62 mm/hr. CRP: 12.4 mg/L. LFTs normal. Methotrexate level adequate.',
+      assessment:'Rheumatoid Arthritis — active disease with elevated inflammatory markers. Osteoporosis stable on Alendronate.',
+      plan:'1. Continue Methotrexate 15mg weekly. Add folic acid 5mg on non-MTX day.\n2. Physiotherapy referral for hand exercises.\n3. Review with rheumatologist in 6 weeks if no improvement.\n4. Monitor LFTs monthly.' },
+  ],
+  'a9f1ca74-032e-465f-b153-54365602c4ca': [
+    { id:'n1', date:'2026-09-01T09:30:00Z', author:'Dr. Arjun Nair', authorRole:'General Physician', type:'Nephrology Follow-up — CKD Stage 3', signed:true,
+      subjective:'Gopalan Rajan reports reduced appetite and mild nausea for 4 days. Caregiver reports ankle swelling.',
+      objective:'BP: 142/86 mmHg. eGFR: 38 mL/min/1.73m². Creatinine: 1.68 mg/dL. Haemoglobin: 9.8 g/dL (iron deficiency component). Bilateral ankle edema 1+.',
+      assessment:'CKD Stage 3 — stable eGFR but mild anaemia of CKD. Hypertension slightly above target.',
+      plan:'1. Start iron supplementation: Ferrous sulphate 200mg BD with Vitamin C.\n2. Refer to dietitian for CKD-adapted low-protein diet.\n3. Increase Amlodipine to 10mg for BP control.\n4. Repeat eGFR and FBC in 6 weeks.' },
+  ],
+  'eaf97dad-41d4-4e48-a345-5f1d3f0f5380': [
+    { id:'n1', date:'2026-09-03T10:00:00Z', author:'Dr. Priya Sharma', authorRole:'Cardiologist', type:'Cardiology Review — Heart Failure + Atrial Fibrillation', signed:true,
+      subjective:'Lakshmi Raghavan reports worsening breathlessness on mild exertion over the past week. Husband notes 2kg weight gain in 5 days. Cannot lie flat — uses 3 pillows. Ankles visibly swollen.',
+      objective:'BP: 118/74 mmHg. HR: 82 bpm (irregularly irregular). SpO2: 94%. BNP: 420 pg/mL (up from 280). 2+ pitting edema ankles. INR: 2.3 (therapeutic). ECG: AF with rate 82.',
+      assessment:'Atrial Fibrillation + Decompensating Heart Failure. BNP rising — early volume overload. Hypothyroidism may be contributing to AF control difficulty.',
+      plan:'1. Increase Furosemide from 20mg to 40mg for 7 days, then reassess.\n2. Daily weight monitoring — alert if >2kg gain in 24h.\n3. Restrict fluid to 1.5L/day.\n4. Repeat BNP in 2 weeks.\n5. TFTs to reassess thyroid control.' },
+  ],
+  '3489a162-e878-493a-92e3-ad33476afc55': [
+    { id:'n1', date:'2026-09-01T14:00:00Z', author:'Dr. Priya Sharma', authorRole:'Neurologist', type:'Neurology Review — Parkinson\'s Disease + Depression', signed:true,
+      subjective:'Mohan Pillai\'s son reports significant motor fluctuations — severe morning off-periods and improved function in early afternoons. PHQ-9 score 14 (moderately severe depression). Refuses social activities.',
+      objective:'UPDRS motor score: 38. Postural tremor 2/4 bilaterally. Bradykinesia 3/4. Mild festinating gait. Cognition: MMSE 24/30.',
+      assessment:'Moderate Parkinson\'s disease with motor fluctuations. Moderately severe depression, likely exacerbated by loss of independence and social isolation.',
+      plan:'1. Adjust Levodopa/Carbidopa timing — give 30 min before meals to improve absorption.\n2. Increase Sertraline from 50mg to 100mg — monitor for serotonin syndrome.\n3. Referral to Parkinson\'s physiotherapy group.\n4. Discuss DBS candidacy at next neurosurgery MDT.' },
+  ],
+  '2275974a-33b5-4f1d-aa97-79b60c26893e': [
+    { id:'n1', date:'2026-08-28T11:00:00Z', author:'Dr. Priya Sharma', authorRole:'Respiratory Physician', type:'COPD Review', signed:true,
+      subjective:'Kamala Venkatesh reports nocturnal breathlessness 3-4 nights per week. Using rescue inhaler 5-6 times per week. Anxiety worsening, with 2 panic attacks last month.',
+      objective:'FEV1: 55% predicted. FEV1/FVC ratio: 0.62. SpO2: 92% on exertion. CXR: hyperinflated lungs, no consolidation. GAD-7: 12 (moderate anxiety).',
+      assessment:'COPD GOLD Stage II. Anxiety disorder exacerbating perceived breathlessness and leading to over-use of rescue inhaler.',
+      plan:'1. Add Tiotropium 18mcg once daily via HandiHaler.\n2. Refer to pulmonary rehabilitation programme.\n3. Breathing retraining with physiotherapist for anxiety-related dyspnoea.\n4. Continue Escitalopram — increase to 15mg.' },
+  ],
+  '5b29040a-ea76-4cf3-9d2c-f63c70fcd419': [
+    { id:'n1', date:'2026-09-05T09:00:00Z', author:'Dr. Meera Pillai', authorRole:'Geriatric Psychiatrist', type:'Memory Clinic Review — Alzheimer\'s Disease', signed:true,
+      subjective:'Family reports Krishnamurthy Swaminathan no longer recognizes daughter-in-law. Wandering at night on 3 occasions in past 2 weeks. Refusing bathing — agitation during personal care.',
+      objective:'MMSE: 16/30 (down from 18 at last visit, 3 months ago). Clock drawing: unable to complete. Significant decline in IADLs. BSL: 162 mg/dL.',
+      assessment:'Moderate Alzheimer\'s Disease with increasing behavioral disturbance. T2DM suboptimally controlled — likely affected by dietary inconsistency due to cognitive decline.',
+      plan:'1. Increase Memantine to 20mg BD.\n2. Refer family to memory care support group.\n3. Occupational therapy home assessment for safety.\n4. Consider nighttime melatonin for sleep-wake reversal.\n5. Caregiver respite services referral.' },
+  ],
+  'f400c4b2-e9be-4223-ac3a-342868fd48d6': [
+    { id:'n1', date:'2026-09-05T10:00:00Z', author:'Dr. Meera Pillai', authorRole:'Neurologist', type:'MS Clinic Review', signed:true,
+      subjective:'Radha Krishnan reports no new relapses in past 6 months. However, fatigue is increasingly limiting her ADLs. Bladder urgency improved on Oxybutynin.',
+      objective:'EDSS: 3.5. Lymphocyte count: 0.8 (monitoring threshold). MRI: no new lesions cf. baseline. PVR: 35mL (improved).',
+      assessment:'RRMS — stable disease activity on Dimethyl Fumarate (DMF). Fatigue prominent. Bladder dysfunction improving.',
+      plan:'1. Continue DMF 240mg BD — monitor lymphocytes every 3 months.\n2. Refer to MS fatigue management programme.\n3. Continue Oxybutynin 5mg BD — review in 3 months.\n4. MRI brain and spine in 12 months.' },
+  ],
+  '95007ae1-f846-4543-9446-5bdf68ddfd32': [
+    { id:'n1', date:'2026-09-03T11:00:00Z', author:'Dr. Meera Pillai', authorRole:'Neurologist', type:'Epilepsy Review', signed:true,
+      subjective:'Balaji Subramaniam reports 1 absence seizure 8 weeks ago — stared blankly for ~30 seconds while eating dinner. No tonic-clonic events. Wife witnessed it.',
+      objective:'Levetiracetam level: 42 mcg/mL (therapeutic range 12-46). BP: 128/80. Neurology exam: normal. EEG: mild generalised slowing.',
+      assessment:'Focal epilepsy — adequately controlled on Levetiracetam. Hypertension well controlled on Amlodipine.',
+      plan:'1. Continue Levetiracetam 1g BD — do not adjust dose.\n2. Remind patient of driving restriction — legally must be seizure-free for 12 months.\n3. Advise annual EEG monitoring.\n4. Refer to social worker re: impact of driving restriction on independence.' },
+  ],
+  'd47beac5-3a09-4722-94bf-7cae9f8a081f': [
+    { id:'n1', date:'2026-09-05T09:30:00Z', author:'Dr. Rajan Menon', authorRole:'Cardiologist', type:'Heart Failure Clinic — Critical Review', signed:true,
+      subjective:'Padmanabhan Nambiar\'s wife reports he has been sleeping in a recliner for 5 nights (orthopnea), with severe appetite loss. He is breathless walking to the bathroom.',
+      objective:'Weight: 71.4 kg (3.1 kg above dry weight). BNP: 890 pg/mL (markedly elevated). BP: 102/64 mmHg. HR: 92 bpm. SpO2: 91% on room air. Bilateral crackles in lung bases. 3+ pitting edema.',
+      assessment:'Acutely decompensated congestive heart failure — significant fluid overload. eGFR 42 — cardiorenal syndrome developing.',
+      plan:'1. URGENT: Consider hospital admission if not improving within 48h.\n2. IV Furosemide 40mg if available via home care nurse.\n3. Ramipril dose titrated up to 5mg BD.\n4. Daily weight — if >2kg gain in 24h, admit immediately.\n5. Cardiology review in 5 days.' },
+  ],
+  '12d12b80-9848-4130-89ba-10f6334c6899': [
+    { id:'n1', date:'2026-09-01T10:00:00Z', author:'Dr. Rajan Menon', authorRole:'Cardiologist', type:'HOCM Review', signed:true,
+      subjective:'Janaki Srinivasan reports chest pain on exertion (5 min, resolving with rest). New onset bilateral leg swelling. Nausea with morning medications.',
+      objective:'LVOT gradient: 42 mmHg at rest. LDL: 88 mg/dL. NT-proBNP: 380 pg/mL. Echo: asymmetric septal hypertrophy. BP: 108/72 mmHg. HR: 66 bpm.',
+      assessment:'Hypertrophic Obstructive Cardiomyopathy (HOCM) — stable gradient. Dyslipidaemia partially controlled. New peripheral edema requires monitoring.',
+      plan:'1. Continue Verapamil 120mg TDS — review dose if gradient persists.\n2. Increase Rosuvastatin from 10mg to 20mg for LDL target.\n3. Prescribe Domperidone 10mg before meals for nausea.\n4. Repeat Echo in 6 months.' },
+  ],
+  'a54594c5-bf6f-4f0b-bcca-b3df6ce952c6': [
+    { id:'n1', date:'2026-09-01T14:00:00Z', author:'Dr. Rajan Menon', authorRole:'Cardiologist', type:'Pacemaker Check + Annual Review', signed:true,
+      subjective:'Venkatasubramanian Iyer reports feeling well. No palpitations, syncope, or presyncope. Active at home, walking in garden daily.',
+      objective:'Device interrogation: Battery 7 years remaining. Pacing 89% of time. No arrhythmias logged. Sensing thresholds normal. BP: 122/74 mmHg. eGFR: 58.',
+      assessment:'Complete heart block — well managed with dual-chamber pacemaker. Device functioning optimally. Mild CKD stable.',
+      plan:'1. Continue Aspirin 75mg and Atorvastatin 20mg.\n2. Next pacemaker check in 6 months.\n3. Recheck eGFR and lipids in 3 months.\n4. Patient encouraged to continue mild physical activity.' },
+  ],
+  'ea413a16-5149-4dd9-905b-d3f62508e931': [
+    { id:'n1', date:'2026-09-04T10:00:00Z', author:'Dr. Lakshmi Iyer', authorRole:'Endocrinologist', type:'Thyroid Management Review', signed:true,
+      subjective:'Nalini Chandrasekhar reports persistent fatigue, brain fog, and cold intolerance despite levothyroxine therapy. Sleeping 9-10 hours but still unrefreshed.',
+      objective:'TSH: 2.1 mIU/L (within range). Free T4: 1.2 ng/dL. Anti-TPO: 245 IU/mL (elevated — active Hashimoto\'s). Weight 63 kg (unchanged).',
+      assessment:'Hashimoto\'s thyroiditis with hypothyroidism — biochemically euthyroid but symptomatic. Some patients feel better with TSH in lower-normal range.',
+      plan:'1. Increase Levothyroxine from 100mcg to 112.5mcg (alternate 100/125mcg daily).\n2. Recheck TFTs in 6 weeks.\n3. Selenium supplementation 200mcg daily — may reduce anti-TPO titres.\n4. Consider referral to endocrinology if symptoms persist.' },
+  ],
+  'e442022e-1232-4ccb-b5bc-c6b3bbcc67cb': [
+    { id:'n1', date:'2026-09-02T11:00:00Z', author:'Dr. Lakshmi Iyer', authorRole:'Endocrinologist', type:'Diabetology Review — Type 1 DM', signed:true,
+      subjective:'Shanmugam Palanichamy reports frequent nocturnal hypoglycaemia. Last episode: blood glucose 52 mg/dL at 3 AM. Wife administered glucose tablets. Peripheral neuropathy causing foot burning at night.',
+      objective:'HbA1c: 8.9% (suboptimal). eGFR: 42 (declining). ACR: 145 mg/g (macroalbuminuria). Fundal exam: NPDR bilateral. Weight: 58 kg.',
+      assessment:'T1DM with suboptimal control. Diabetic nephropathy (stage 3a). NPDR bilateral. Peripheral neuropathy. High risk of progression to ESRD without tight BP and glycaemic control.',
+      plan:'1. Reduce basal Glargine by 2 units to prevent nocturnal hypos.\n2. Discuss CGM (continuous glucose monitor) use.\n3. Ophthalmology: expedite laser photocoagulation referral.\n4. Increase Lisinopril to maximum dose.\n5. Refer to nephrology urgently.' },
+  ],
+  '3a681eb3-f656-48ae-ba48-353c5f0a8a4f': [
+    { id:'n1', date:'2026-09-01T14:00:00Z', author:'Dr. Lakshmi Iyer', authorRole:'Endocrinologist', type:'Post-op Adrenal Adenoma Follow-up', signed:true,
+      subjective:'Bhagyalakshmi Narayanan reports doing well post-adrenalectomy. Mild hip pain — bone density concern. Following hydrocortisone replacement schedule reliably.',
+      objective:'24h urinary cortisol: 48 mcg (slightly above upper limit). DEXA T-score Hip: -2.5 (osteoporosis). Vitamin D: 38 ng/mL (adequate). Fasting glucose: 104 mg/dL.',
+      assessment:'Cushing\'s syndrome in remission — mild hypercortisolism may indicate residual tissue or stress response. Secondary osteoporosis from chronic cortisol exposure.',
+      plan:'1. Repeat 24h urinary cortisol in 6 weeks.\n2. Continue Alendronate 70mg weekly for osteoporosis.\n3. Calcium 1000mg + Vitamin D3 1000 IU daily.\n4. Repeat DEXA in 12 months.\n5. Continue Hydrocortisone 15/10/5mg (morning/noon/evening).' },
+  ],
+};
+
+const GENERIC_NOTES: ClinicalNote[] = [
+  { id:'gn1', date:'2026-09-01T10:00:00Z', author:'Assigned Clinician', authorRole:'General Physician', type:'Routine Follow-up', signed:true,
+    subjective:'Patient attended for routine follow-up. Reports feeling generally stable with no new acute symptoms.',
+    objective:'Vital signs stable. Weight unchanged from last visit. No focal abnormalities on examination.',
+    assessment:'Chronic conditions stable. Medication adherence reported as good.',
+    plan:'Continue current medications. Review in 3 months. Bloods to be repeated prior to next review.' },
+];
+
+export default function PatientNotesPage() {
+  const params = useParams();
+  const patientId = params.patientId as string;
+  const [patient, setPatient] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  
+  // Note Form
+  const [newType, setNewType] = useState('Follow-up Encounter');
+  const [newSubj, setNewSubj] = useState('');
+  const [newObj, setNewObj] = useState('');
+  const [newAssess, setNewAssess] = useState('');
+  const [newPlan, setNewPlan] = useState('');
+
+  const [notes, setNotes] = useState<ClinicalNote[]>(() => {
+    return PATIENT_NOTES[patientId] ?? GENERIC_NOTES;
+  });
+
+  useEffect(() => {
+    // Reset notes when patient changes
+    setNotes(PATIENT_NOTES[patientId] ?? GENERIC_NOTES);
+  }, [patientId]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await patientsApi.getById(patientId);
+        setPatient(res?.data || res || null);
+      } catch (e) {
+        console.error('Failed to load patient:', e);
+        setPatient(MOCK_PATIENTS_MAP[patientId] ?? null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [patientId]);
+
+  const handleAddNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    const created: ClinicalNote = {
+      id: 'note-' + Date.now(),
+      date: new Date().toISOString(),
+      author: 'Dr. Vikram Malhotra',
+      authorRole: 'Attending Physician',
+      type: newType,
+      subjective: newSubj,
+      objective: newObj,
+      assessment: newAssess,
+      plan: newPlan,
+      signed: true,
+    };
+    setNotes([created, ...notes]);
+    setShowAddForm(false);
+    setNewSubj('');
+    setNewObj('');
+    setNewAssess('');
+    setNewPlan('');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!patient) {
+    return <div className="p-8 text-center text-muted-foreground">Patient not found.</div>;
+  }
+
+  return (
+    <div>
+      <PatientHeader patient={patient} />
+      <div className="p-8 max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FileText className="w-6 h-6 text-primary" />
+              Clinical Notes & Encounters
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Structured SOAP notes, physician encounter summaries, and longitudinal clinical commentary.
+            </p>
+          </div>
+          <Button onClick={() => setShowAddForm(!showAddForm)} className="gap-1.5">
+            <Plus className="w-4 h-4" />
+            {showAddForm ? 'Cancel' : 'New Clinical Note'}
+          </Button>
+        </div>
+
+        {/* Add Note Modal/Form */}
+        {showAddForm && (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base text-primary flex items-center gap-2">
+                <Stethoscope className="w-4 h-4" />
+                Draft New SOAP Note
+              </CardTitle>
+              <CardDescription>
+                Note will be cryptographically signed and added to the patient&apos;s longitudinal EHR memory.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleAddNote} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                    Encounter Type
+                  </label>
+                  <input
+                    type="text"
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                      (S) Subjective
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={newSubj}
+                      onChange={(e) => setNewSubj(e.target.value)}
+                      placeholder="Patient's reported symptoms, caregiver input..."
+                      className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                      (O) Objective
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={newObj}
+                      onChange={(e) => setNewObj(e.target.value)}
+                      placeholder="Vitals, physical exam findings, telemetry data..."
+                      className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                      (A) Assessment
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={newAssess}
+                      onChange={(e) => setNewAssess(e.target.value)}
+                      placeholder="Differential diagnosis, clinical impression..."
+                      className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                      (P) Plan
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={newPlan}
+                      onChange={(e) => setNewPlan(e.target.value)}
+                      placeholder="Medications adjusted, diagnostic orders, follow-up..."
+                      className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="ghost" onClick={() => setShowAddForm(false)}>Cancel</Button>
+                  <Button type="submit" className="gap-1.5">
+                    <ShieldCheck className="w-4 h-4" />
+                    Sign & Commit Note
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Existing Notes List */}
+        <div className="space-y-4">
+          {notes.map((note) => (
+            <Card key={note.id} className="border shadow-sm">
+              <CardHeader className="py-4 px-6 border-b bg-slate-50/50 flex flex-row items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-semibold text-primary border-primary/30">
+                      {note.type}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      {new Date(note.date).toLocaleDateString('en-IN', {
+                        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    Signed by <span className="font-medium text-foreground">{note.author}</span> ({note.authorRole})
+                  </p>
+                </div>
+                {note.signed && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Digitally Verified
+                  </span>
+                )}
+              </CardHeader>
+              <CardContent className="p-6 space-y-4 text-sm">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Subjective</h4>
+                  <p className="text-slate-800 leading-relaxed">{note.subjective}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Objective</h4>
+                  <p className="text-slate-800 leading-relaxed font-mono text-xs bg-slate-50 p-2.5 rounded border">
+                    {note.objective}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Assessment</h4>
+                  <p className="text-slate-800 leading-relaxed">{note.assessment}</p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Plan</h4>
+                  <div className="text-slate-800 leading-relaxed whitespace-pre-line bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                    {note.plan}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { FileText, UploadCloud, Download, Eye, Shield, FileCheck, Calendar, Filter } from 'lucide-react';
+
+interface PatientDoc {
+  id: string;
+  title: string;
+  category: string;
+  source: string;
+  date: string;
+  fileSize: string;
+  fileType: string;
+  status: 'Verified' | 'Pending Review';
+}
+
+export default function PatientDocumentsPage() {
+  const params = useParams();
+  const patientId = params.patientId as string;
+  const [patient, setPatient] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [docs, setDocs] = useState<PatientDoc[]>([
+    {
+      id: 'doc-1',
+      title: 'Echocardiogram Transthoracic Report (LVEF 52%)',
+      category: 'Cardiology Diagnostics',
+      source: 'Apollo Heart Center',
+      date: '2026-08-22',
+      fileSize: '2.4 MB',
+      fileType: 'PDF',
+      status: 'Verified',
+    },
+    {
+      id: 'doc-2',
+      title: 'Discharge Summary - Cardiac Care Unit',
+      category: 'Inpatient Summary',
+      source: 'Manipal Hospital ICU',
+      date: '2026-07-14',
+      fileSize: '4.1 MB',
+      fileType: 'PDF',
+      status: 'Verified',
+    },
+    {
+      id: 'doc-3',
+      title: 'Comprehensive Metabolic Panel & HbA1c Lab Slips',
+      category: 'Laboratory',
+      source: 'Dr. Lal PathLabs',
+      date: '2026-09-02',
+      fileSize: '820 KB',
+      fileType: 'PDF',
+      status: 'Verified',
+    },
+    {
+      id: 'doc-4',
+      title: 'Bilateral Renal Artery Doppler Ultrasound',
+      category: 'Imaging',
+      source: 'CareGuardian Diagnostic Center',
+      date: '2026-06-19',
+      fileSize: '5.6 MB',
+      fileType: 'PDF',
+      status: 'Verified',
+    }
+  ]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await patientsApi.getById(patientId);
+        setPatient(res?.data || res || null);
+      } catch (e) {
+        console.error('Failed to load patient:', e);
+        setPatient(MOCK_PATIENTS_MAP[patientId] ?? null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [patientId]);
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!patient) return <div className="p-8 text-center text-muted-foreground">Patient not found.</div>;
+
+  return (
+    <div>
+      <PatientHeader patient={patient} />
+      <div className="p-8 max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FileText className="w-6 h-6 text-primary" />
+              Medical Documents & Clinical Records
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Longitudinal repository of uploaded clinical summaries, lab slips, imaging scans, and referral notes.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <UploadCloud className="w-4 h-4" />
+              Upload Document
+            </Button>
+          </div>
+        </div>
+
+        {/* Upload Dropzone Preview */}
+        <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:bg-slate-50/60 transition-colors cursor-pointer bg-white">
+          <UploadCloud className="w-10 h-10 text-primary/70 mx-auto mb-2" />
+          <h4 className="text-sm font-semibold text-foreground">Click to upload or drag and drop medical documents</h4>
+          <p className="text-xs text-muted-foreground mt-1">PDF, DICOM, JPG, PNG up to 50MB. Automatically vectorized into Baseline memory.</p>
+        </div>
+
+        {/* Documents Table */}
+        <Card>
+          <CardHeader className="py-4 px-6 border-b flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Document Vault ({docs.length})</CardTitle>
+            <Badge variant="secondary">HIPAA Encrypted</Badge>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {docs.map((doc) => (
+                <div key={doc.id} className="p-4 px-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs border border-red-200">
+                      {doc.fileType}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground">{doc.title}</h4>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                        <span className="font-medium text-slate-700">{doc.category}</span>
+                        <span>•</span>
+                        <span>{doc.source}</span>
+                        <span>•</span>
+                        <span>{doc.fileSize}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {doc.date}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <FileCheck className="w-3 h-3" />
+                      {doc.status}
+                    </span>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Eye className="w-4 h-4 text-slate-600" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Download className="w-4 h-4 text-slate-600" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi, labsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, FlaskConical, Calendar, Minus } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
+
+// Per-patient mock labs when none found in DB
+const PATIENT_LABS: Record<string, any[]> = {
+  '66c67bf7-f6e3-478e-b972-20d7d25b4958': [
+    { id:'r1', testName:'HbA1c', category:'Glycemic Control', value:'7.8', unit:'%', refRange:'< 5.7', flag:'HIGH', collectedAt:'2026-09-02', trend:'up' },
+    { id:'r2', testName:'Fasting Plasma Glucose', category:'Glycemic Control', value:'148', unit:'mg/dL', refRange:'70-99', flag:'HIGH', collectedAt:'2026-09-02', trend:'up' },
+    { id:'r3', testName:'Serum Creatinine', category:'Renal Function', value:'0.97', unit:'mg/dL', refRange:'0.6-1.1', flag:'NORMAL', collectedAt:'2026-09-02', trend:'flat' },
+    { id:'r4', testName:'LDL Cholesterol', category:'Lipid Panel', value:'112', unit:'mg/dL', refRange:'< 100', flag:'HIGH', collectedAt:'2026-08-15', trend:'up' },
+    { id:'r5', testName:'Potassium (Serum)', category:'Electrolytes', value:'4.1', unit:'mEq/L', refRange:'3.5-5.0', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+  ],
+  '33ec2506-2cfd-437d-8c66-defd67159f29': [
+    { id:'r1', testName:'ESR (Erythrocyte Sedimentation Rate)', category:'Inflammatory Markers', value:'62', unit:'mm/hr', refRange:'0-20', flag:'HIGH', collectedAt:'2026-09-05', trend:'up' },
+    { id:'r2', testName:'CRP (C-Reactive Protein)', category:'Inflammatory Markers', value:'12.4', unit:'mg/L', refRange:'< 5', flag:'HIGH', collectedAt:'2026-09-05', trend:'up' },
+    { id:'r3', testName:'ALT (Liver Function)', category:'Liver Function', value:'28', unit:'U/L', refRange:'7-40', flag:'NORMAL', collectedAt:'2026-09-05', trend:'flat' },
+    { id:'r4', testName:'DEXA T-Score (Spine)', category:'Bone Density', value:'-2.8', unit:'SD', refRange:'>-1.0', flag:'LOW', collectedAt:'2026-07-20', trend:'down' },
+    { id:'r5', testName:'Serum Calcium', category:'Electrolytes', value:'9.2', unit:'mg/dL', refRange:'8.5-10.5', flag:'NORMAL', collectedAt:'2026-09-05', trend:'flat' },
+  ],
+  'a9f1ca74-032e-465f-b153-54365602c4ca': [
+    { id:'r1', testName:'eGFR (CKD-EPI)', category:'Renal Function', value:'38', unit:'mL/min/1.73m²', refRange:'> 60', flag:'LOW', collectedAt:'2026-09-01', trend:'down' },
+    { id:'r2', testName:'Serum Creatinine', category:'Renal Function', value:'1.68', unit:'mg/dL', refRange:'0.6-1.1', flag:'HIGH', collectedAt:'2026-09-01', trend:'up' },
+    { id:'r3', testName:'Hemoglobin', category:'Complete Blood Count', value:'9.8', unit:'g/dL', refRange:'12-17', flag:'LOW', collectedAt:'2026-09-01', trend:'down' },
+    { id:'r4', testName:'Urine ACR (Albumin:Creatinine)', category:'Renal Function', value:'89', unit:'mg/g', refRange:'< 30', flag:'HIGH', collectedAt:'2026-09-01', trend:'up' },
+    { id:'r5', testName:'Serum Potassium', category:'Electrolytes', value:'4.8', unit:'mEq/L', refRange:'3.5-5.0', flag:'NORMAL', collectedAt:'2026-09-01', trend:'flat' },
+  ],
+  'eaf97dad-41d4-4e48-a345-5f1d3f0f5380': [
+    { id:'r1', testName:'BNP (B-type Natriuretic Peptide)', category:'Cardiac Biomarkers', value:'420', unit:'pg/mL', refRange:'< 100', flag:'CRITICAL', collectedAt:'2026-09-03', trend:'up' },
+    { id:'r2', testName:'INR', category:'Coagulation', value:'2.3', unit:'ratio', refRange:'2.0-3.0', flag:'NORMAL', collectedAt:'2026-09-03', trend:'flat' },
+    { id:'r3', testName:'TSH (Thyroid Stimulating Hormone)', category:'Thyroid', value:'8.1', unit:'mIU/L', refRange:'0.4-4.0', flag:'HIGH', collectedAt:'2026-09-03', trend:'up' },
+    { id:'r4', testName:'Serum Potassium', category:'Electrolytes', value:'3.2', unit:'mEq/L', refRange:'3.5-5.0', flag:'LOW', collectedAt:'2026-09-03', trend:'down' },
+    { id:'r5', testName:'eGFR', category:'Renal Function', value:'58', unit:'mL/min/1.73m²', refRange:'> 60', flag:'LOW', collectedAt:'2026-09-03', trend:'flat' },
+  ],
+  '3489a162-e878-493a-92e3-ad33476afc55': [
+    { id:'r1', testName:'Levodopa Serum Level', category:'Drug Levels', value:'0.8', unit:'mcg/mL', refRange:'0.5-1.5', flag:'NORMAL', collectedAt:'2026-09-01', trend:'flat' },
+    { id:'r2', testName:'Serum Ferritin', category:'Iron Studies', value:'18', unit:'ng/mL', refRange:'24-336', flag:'LOW', collectedAt:'2026-09-01', trend:'down' },
+    { id:'r3', testName:'Vitamin B12', category:'Vitamins', value:'188', unit:'pg/mL', refRange:'200-900', flag:'LOW', collectedAt:'2026-08-15', trend:'down' },
+    { id:'r4', testName:'TSH', category:'Thyroid', value:'2.8', unit:'mIU/L', refRange:'0.4-4.0', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+    { id:'r5', testName:'HbA1c', category:'Glycemic Control', value:'5.6', unit:'%', refRange:'< 5.7', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+  ],
+  '2275974a-33b5-4f1d-aa97-79b60c26893e': [
+    { id:'r1', testName:'FEV1 (Pulmonary Function)', category:'Respiratory', value:'55', unit:'% predicted', refRange:'> 80%', flag:'LOW', collectedAt:'2026-08-28', trend:'down' },
+    { id:'r2', testName:'Arterial Blood Gas — pO2', category:'Respiratory', value:'68', unit:'mmHg', refRange:'75-100', flag:'LOW', collectedAt:'2026-08-28', trend:'down' },
+    { id:'r3', testName:'SpO2 (Resting)', category:'Respiratory', value:'93', unit:'%', refRange:'> 95%', flag:'LOW', collectedAt:'2026-08-28', trend:'down' },
+    { id:'r4', testName:'CRP', category:'Inflammatory Markers', value:'8.1', unit:'mg/L', refRange:'< 5', flag:'HIGH', collectedAt:'2026-08-28', trend:'up' },
+    { id:'r5', testName:'Eosinophil Count', category:'Complete Blood Count', value:'0.4', unit:'x10^9/L', refRange:'0.04-0.4', flag:'NORMAL', collectedAt:'2026-08-28', trend:'flat' },
+  ],
+  '5b29040a-ea76-4cf3-9d2c-f63c70fcd419': [
+    { id:'r1', testName:'MMSE Score', category:'Cognitive Assessment', value:'16', unit:'/30', refRange:'> 24', flag:'LOW', collectedAt:'2026-09-05', trend:'down' },
+    { id:'r2', testName:'HbA1c', category:'Glycemic Control', value:'8.1', unit:'%', refRange:'< 5.7', flag:'HIGH', collectedAt:'2026-09-05', trend:'up' },
+    { id:'r3', testName:'Serum Folate', category:'Vitamins', value:'2.4', unit:'ng/mL', refRange:'2.7-17', flag:'LOW', collectedAt:'2026-08-15', trend:'down' },
+    { id:'r4', testName:'Vitamin D', category:'Vitamins', value:'18', unit:'ng/mL', refRange:'30-80', flag:'LOW', collectedAt:'2026-08-15', trend:'down' },
+    { id:'r5', testName:'TSH', category:'Thyroid', value:'3.2', unit:'mIU/L', refRange:'0.4-4.0', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+  ],
+  'f400c4b2-e9be-4223-ac3a-342868fd48d6': [
+    { id:'r1', testName:'MRI Brain (Lesion Load)', category:'Neuroimaging', value:'Moderate', unit:'', refRange:'Stable', flag:'HIGH', collectedAt:'2026-08-01', trend:'up' },
+    { id:'r2', testName:'Lymphocyte Count', category:'Complete Blood Count', value:'0.8', unit:'x10^9/L', refRange:'1.0-4.8', flag:'LOW', collectedAt:'2026-09-05', trend:'down' },
+    { id:'r3', testName:'Vitamin D', category:'Vitamins', value:'22', unit:'ng/mL', refRange:'30-80', flag:'LOW', collectedAt:'2026-09-05', trend:'down' },
+    { id:'r4', testName:'Urinalysis — WBC', category:'Urology', value:'10', unit:'/hpf', refRange:'< 5', flag:'HIGH', collectedAt:'2026-09-05', trend:'up' },
+    { id:'r5', testName:'HbA1c', category:'Glycemic Control', value:'5.4', unit:'%', refRange:'< 5.7', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+  ],
+  '95007ae1-f846-4543-9446-5bdf68ddfd32': [
+    { id:'r1', testName:'Levetiracetam Level', category:'Drug Levels', value:'42', unit:'mcg/mL', refRange:'12-46', flag:'NORMAL', collectedAt:'2026-09-03', trend:'flat' },
+    { id:'r2', testName:'Serum Sodium', category:'Electrolytes', value:'134', unit:'mEq/L', refRange:'135-145', flag:'LOW', collectedAt:'2026-09-03', trend:'down' },
+    { id:'r3', testName:'Serum ALT', category:'Liver Function', value:'32', unit:'U/L', refRange:'7-40', flag:'NORMAL', collectedAt:'2026-09-03', trend:'flat' },
+    { id:'r4', testName:'Fasting Glucose', category:'Glycemic Control', value:'98', unit:'mg/dL', refRange:'70-99', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+    { id:'r5', testName:'Complete Blood Count — WBC', category:'Complete Blood Count', value:'7.2', unit:'x10^9/L', refRange:'4-10', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+  ],
+  'd47beac5-3a09-4722-94bf-7cae9f8a081f': [
+    { id:'r1', testName:'BNP (B-type Natriuretic Peptide)', category:'Cardiac Biomarkers', value:'890', unit:'pg/mL', refRange:'< 100', flag:'CRITICAL', collectedAt:'2026-09-05', trend:'up' },
+    { id:'r2', testName:'eGFR', category:'Renal Function', value:'42', unit:'mL/min/1.73m²', refRange:'> 60', flag:'LOW', collectedAt:'2026-09-05', trend:'down' },
+    { id:'r3', testName:'HbA1c', category:'Glycemic Control', value:'8.6', unit:'%', refRange:'< 5.7', flag:'HIGH', collectedAt:'2026-09-01', trend:'up' },
+    { id:'r4', testName:'Ejection Fraction (Echo)', category:'Cardiac Function', value:'38', unit:'%', refRange:'> 55', flag:'LOW', collectedAt:'2026-08-28', trend:'down' },
+    { id:'r5', testName:'Troponin I', category:'Cardiac Biomarkers', value:'0.04', unit:'ng/mL', refRange:'< 0.04', flag:'NORMAL', collectedAt:'2026-09-05', trend:'flat' },
+  ],
+  '12d12b80-9848-4130-89ba-10f6334c6899': [
+    { id:'r1', testName:'LVOT Gradient (Echo)', category:'Cardiac Function', value:'42', unit:'mmHg', refRange:'< 30', flag:'HIGH', collectedAt:'2026-09-01', trend:'flat' },
+    { id:'r2', testName:'LDL Cholesterol', category:'Lipid Panel', value:'88', unit:'mg/dL', refRange:'< 70 (high risk)', flag:'HIGH', collectedAt:'2026-09-01', trend:'down' },
+    { id:'r3', testName:'NT-proBNP', category:'Cardiac Biomarkers', value:'380', unit:'pg/mL', refRange:'< 125', flag:'HIGH', collectedAt:'2026-09-01', trend:'up' },
+    { id:'r4', testName:'Serum Potassium', category:'Electrolytes', value:'3.8', unit:'mEq/L', refRange:'3.5-5.0', flag:'NORMAL', collectedAt:'2026-09-01', trend:'flat' },
+    { id:'r5', testName:'Haemoglobin', category:'Complete Blood Count', value:'11.4', unit:'g/dL', refRange:'12-17', flag:'LOW', collectedAt:'2026-09-01', trend:'down' },
+  ],
+  'a54594c5-bf6f-4f0b-bcca-b3df6ce952c6': [
+    { id:'r1', testName:'Pacemaker Battery Life', category:'Device Check', value:'7 yr', unit:'remaining', refRange:'> 2 yr', flag:'NORMAL', collectedAt:'2026-09-01', trend:'flat' },
+    { id:'r2', testName:'eGFR', category:'Renal Function', value:'58', unit:'mL/min/1.73m²', refRange:'> 60', flag:'LOW', collectedAt:'2026-09-01', trend:'flat' },
+    { id:'r3', testName:'LDL Cholesterol', category:'Lipid Panel', value:'82', unit:'mg/dL', refRange:'< 100', flag:'NORMAL', collectedAt:'2026-08-15', trend:'down' },
+    { id:'r4', testName:'TSH', category:'Thyroid', value:'2.4', unit:'mIU/L', refRange:'0.4-4.0', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+    { id:'r5', testName:'Haemoglobin', category:'Complete Blood Count', value:'13.2', unit:'g/dL', refRange:'12-17', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+  ],
+  'ea413a16-5149-4dd9-905b-d3f62508e931': [
+    { id:'r1', testName:'TSH (Thyroid Stimulating Hormone)', category:'Thyroid', value:'2.1', unit:'mIU/L', refRange:'0.4-4.0', flag:'NORMAL', collectedAt:'2026-09-04', trend:'down' },
+    { id:'r2', testName:'Free T4', category:'Thyroid', value:'1.2', unit:'ng/dL', refRange:'0.8-1.8', flag:'NORMAL', collectedAt:'2026-09-04', trend:'flat' },
+    { id:'r3', testName:'Anti-TPO Antibodies', category:'Thyroid', value:'245', unit:'IU/mL', refRange:'< 34', flag:'HIGH', collectedAt:'2026-09-04', trend:'flat' },
+    { id:'r4', testName:'Serum Calcium', category:'Electrolytes', value:'9.0', unit:'mg/dL', refRange:'8.5-10.5', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+    { id:'r5', testName:'HbA1c', category:'Glycemic Control', value:'5.5', unit:'%', refRange:'< 5.7', flag:'NORMAL', collectedAt:'2026-08-15', trend:'flat' },
+  ],
+  'e442022e-1232-4ccb-b5bc-c6b3bbcc67cb': [
+    { id:'r1', testName:'HbA1c', category:'Glycemic Control', value:'8.9', unit:'%', refRange:'< 5.7', flag:'HIGH', collectedAt:'2026-09-02', trend:'up' },
+    { id:'r2', testName:'eGFR', category:'Renal Function', value:'42', unit:'mL/min/1.73m²', refRange:'> 60', flag:'LOW', collectedAt:'2026-09-02', trend:'down' },
+    { id:'r3', testName:'Urine ACR (Albumin:Creatinine)', category:'Renal Function', value:'145', unit:'mg/g', refRange:'< 30', flag:'HIGH', collectedAt:'2026-09-02', trend:'up' },
+    { id:'r4', testName:'Serum Creatinine', category:'Renal Function', value:'1.54', unit:'mg/dL', refRange:'0.6-1.1', flag:'HIGH', collectedAt:'2026-09-02', trend:'up' },
+    { id:'r5', testName:'Fasting Plasma Glucose', category:'Glycemic Control', value:'210', unit:'mg/dL', refRange:'70-99', flag:'CRITICAL', collectedAt:'2026-09-02', trend:'up' },
+  ],
+  '3a681eb3-f656-48ae-ba48-353c5f0a8a4f': [
+    { id:'r1', testName:'24h Urinary Cortisol', category:'Adrenal Function', value:'48', unit:'mcg/24h', refRange:'3.5-45', flag:'HIGH', collectedAt:'2026-09-01', trend:'down' },
+    { id:'r2', testName:'DEXA T-Score (Hip)', category:'Bone Density', value:'-2.5', unit:'SD', refRange:'> -1.0', flag:'LOW', collectedAt:'2026-07-01', trend:'flat' },
+    { id:'r3', testName:'Serum Calcium', category:'Electrolytes', value:'9.4', unit:'mg/dL', refRange:'8.5-10.5', flag:'NORMAL', collectedAt:'2026-09-01', trend:'flat' },
+    { id:'r4', testName:'Vitamin D', category:'Vitamins', value:'38', unit:'ng/mL', refRange:'30-80', flag:'NORMAL', collectedAt:'2026-09-01', trend:'up' },
+    { id:'r5', testName:'Fasting Glucose', category:'Glycemic Control', value:'104', unit:'mg/dL', refRange:'70-99', flag:'HIGH', collectedAt:'2026-09-01', trend:'flat' },
+  ],
+};
+
+export default function PatientLabsPage() {
+  const params = useParams();
+  const patientId = params.patientId as string;
+  const [patient, setPatient] = useState<any>(null);
+  const [labs, setLabs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [patRes, labsRes] = await Promise.all([
+          patientsApi.getById(patientId).catch(() => null),
+          labsApi.list(patientId).catch(() => []),
+        ]);
+        const pt = patRes?.data || patRes || MOCK_PATIENTS_MAP[patientId] || null;
+        setPatient(pt);
+
+        const dbLabs: any[] = Array.isArray(labsRes) ? labsRes : (labsRes as any)?.labResults ?? [];
+        // Use DB labs if present, otherwise fallback to per-patient mock
+        const fallbackLabs = PATIENT_LABS[patientId] ?? [];
+        setLabs(dbLabs.length > 0 ? dbLabs : fallbackLabs);
+      } catch (e) {
+        console.error('Failed to load labs:', e);
+        setPatient(MOCK_PATIENTS_MAP[patientId] ?? null);
+        setLabs(PATIENT_LABS[patientId] ?? []);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [patientId]);
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!patient) return <div className="p-8 text-center text-muted-foreground">Patient not found.</div>;
+
+  // Normalize DB vs mock lab shapes
+  const normalized = labs.map((lab: any) => ({
+    id: lab.id,
+    testName: lab.testName ?? lab.name ?? 'Lab Test',
+    category: lab.category ?? lab.testType ?? 'General',
+    value: lab.value ?? lab.result ?? '—',
+    unit: lab.unit ?? '',
+    refRange: lab.referenceRange ?? lab.refRange ?? '—',
+    flag: lab.flag ?? lab.interpretation ?? (lab.status === 'critical' ? 'CRITICAL' : lab.status === 'high' ? 'HIGH' : lab.status === 'low' ? 'LOW' : 'NORMAL'),
+    date: lab.collectedAt ?? lab.date ?? lab.createdAt ?? '',
+    trend: lab.trend ?? 'flat',
+  }));
+
+  const criticals = normalized.filter(l => l.flag === 'CRITICAL');
+  const latest = normalized.length > 0 ? normalized[0].date : null;
+
+  function flagBadge(flag: string) {
+    if (flag === 'CRITICAL') return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-300 animate-pulse">
+        <AlertTriangle className="w-3 h-3" /> Critical
+      </span>
+    );
+    if (flag === 'HIGH') return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+        <TrendingUp className="w-3 h-3" /> High
+      </span>
+    );
+    if (flag === 'LOW') return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+        <TrendingDown className="w-3 h-3" /> Low
+      </span>
+    );
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <CheckCircle2 className="w-3 h-3" /> Normal
+      </span>
+    );
+  }
+
+  return (
+    <div>
+      <PatientHeader patient={patient} />
+      <div className="p-8 max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FlaskConical className="w-6 h-6 text-primary" />
+              Diagnostic Laboratories &amp; Biomarkers
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {normalized.length} laboratory results for {patient.firstName} {patient.lastName}.
+            </p>
+          </div>
+          <Button size="sm" className="gap-1.5">
+            <FlaskConical className="w-4 h-4" />
+            Order Lab Panel
+          </Button>
+        </div>
+
+        {/* Critical alerts */}
+        {criticals.map((c) => (
+          <div key={c.id} className="rounded-xl border border-red-200 bg-red-50/70 p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <span className="font-bold text-red-900">Critical Anomaly: {c.testName} ({c.value} {c.unit})</span>
+              <p className="text-red-800 text-xs mt-0.5">
+                Value is significantly outside reference range ({c.refRange}). Requires immediate clinical attention.
+              </p>
+            </div>
+          </div>
+        ))}
+
+        {/* Lab Results Table */}
+        {normalized.length === 0 ? (
+          <Card>
+            <CardContent className="pt-10 pb-10 text-center text-muted-foreground">
+              <FlaskConical className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">No lab results recorded yet.</p>
+              <p className="text-sm mt-1">Lab results will appear here as they are reported.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader className="py-4 px-6 border-b flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Recent Biomarker Panels</CardTitle>
+              {latest && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Latest sample: {formatDate(latest)}
+                </span>
+              )}
+            </CardHeader>
+            <CardContent className="p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-slate-50/50 text-xs text-muted-foreground uppercase">
+                    <th className="text-left py-3 px-6 font-semibold">Test Name</th>
+                    <th className="text-left py-3 px-4 font-semibold">Category</th>
+                    <th className="text-left py-3 px-4 font-semibold">Value</th>
+                    <th className="text-left py-3 px-4 font-semibold">Reference Range</th>
+                    <th className="text-left py-3 px-4 font-semibold">Trend</th>
+                    <th className="text-right py-3 px-6 font-semibold">Flag</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {normalized.map((lab) => (
+                    <tr key={lab.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3.5 px-6 font-medium text-foreground">{lab.testName}</td>
+                      <td className="py-3.5 px-4 text-xs text-muted-foreground">{lab.category}</td>
+                      <td className="py-3.5 px-4 font-bold font-mono">
+                        {lab.value} <span className="text-xs font-normal text-muted-foreground">{lab.unit}</span>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-muted-foreground font-mono">{lab.refRange} {lab.unit}</td>
+                      <td className="py-3.5 px-4">
+                        {lab.trend === 'up' && <TrendingUp className="w-4 h-4 text-rose-500" />}
+                        {lab.trend === 'down' && <TrendingDown className="w-4 h-4 text-blue-500" />}
+                        {lab.trend === 'flat' && <Minus className="w-4 h-4 text-muted-foreground" />}
+                      </td>
+                      <td className="py-3.5 px-6 text-right">{flagBadge(lab.flag)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { patientsApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ShieldAlert, AlertOctagon, PhoneCall, HeartPulse, Lock, Unlock, FileText, CheckCircle2 } from 'lucide-react';
+
+export default function PatientEmergencyPage() {
+  const params = useParams();
+  const patientId = params.patientId as string;
+  const [patient, setPatient] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [breakGlassActivated, setBreakGlassActivated] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await patientsApi.getById(patientId);
+        setPatient(res?.data || res || null);
+      } catch (e) {
+        console.error('Failed to load patient:', e);
+        setPatient(MOCK_PATIENTS_MAP[patientId] ?? null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [patientId]);
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (!patient) return <div className="p-8 text-center text-muted-foreground">Patient not found.</div>;
+
+  return (
+    <div>
+      <PatientHeader patient={patient} />
+      <div className="p-8 max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2 text-rose-700">
+              <AlertOctagon className="w-6 h-6 text-rose-600" />
+              Emergency Profile & Break-Glass Protocol
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Immediate critical resuscitation data, emergency contacts, advance directives, and audited emergency override.
+            </p>
+          </div>
+        </div>
+
+        {/* Emergency Directive Card */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="border-rose-200 bg-rose-50/40">
+            <CardHeader className="pb-2">
+              <span className="text-xs uppercase font-bold text-rose-700 tracking-wider">Resuscitation Status</span>
+              <CardTitle className="text-xl text-rose-950 font-bold">FULL CODE</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-rose-900 space-y-1">
+              <p>• Intubation & Mechanical Ventilation: Permitted</p>
+              <p>• Defibrillation / CPR: Permitted</p>
+              <p>• Advance Directive: Signed & on file (2025)</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-200 bg-amber-50/40">
+            <CardHeader className="pb-2">
+              <span className="text-xs uppercase font-bold text-amber-700 tracking-wider">Critical Allergies</span>
+              <CardTitle className="text-xl text-amber-950 font-bold">Penicillins (Severe)</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-amber-900 space-y-1">
+              <p>• Reaction: Anaphylactoid urticaria & angioedema</p>
+              <p>• Safe Alternative: Macrolides, Fluoroquinolones</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-200 bg-blue-50/40">
+            <CardHeader className="pb-2">
+              <span className="text-xs uppercase font-bold text-blue-700 tracking-wider">Primary Emergency Contact</span>
+              <CardTitle className="text-lg text-blue-950 font-bold">Karthik Sundaram (Son)</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-blue-900 space-y-1">
+              <p className="flex items-center gap-1 font-semibold">
+                <PhoneCall className="w-3.5 h-3.5" /> +91 98401 23456
+              </p>
+              <p>• Handle: @karthik_sundaram</p>
+              <p>• Legal Status: Healthcare Power of Attorney</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Break Glass Access Box */}
+        <Card className="border-2 border-red-300 bg-white">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-600">
+                <ShieldAlert className="w-5 h-5" />
+                <CardTitle className="text-lg font-bold">Break-Glass Emergency Decryption</CardTitle>
+              </div>
+              <Badge variant="destructive">Audited Protocol</Badge>
+            </div>
+            <CardDescription className="text-xs text-slate-600">
+              In life-threatening circumstances, clinicians can override consent restrictions to view locked historical psychiatric, genetic, and restricted psychiatric notes. Every activation is permanently recorded on the immutable HIPAA audit log.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {breakGlassActivated ? (
+              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                  <Unlock className="w-4 h-4 text-emerald-600" />
+                  Emergency Override Active — Full Longitudinal Dossier Unlocked
+                </div>
+                <p className="text-xs text-emerald-700">
+                  Audit Session #BG-2026-9042 registered to Dr. Vikram Malhotra. Notification dispatched to patient&apos;s healthcare proxy.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border">
+                <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-slate-500" />
+                  <div>
+                    <h5 className="text-sm font-semibold">Consent Shield Active</h5>
+                    <p className="text-xs text-muted-foreground">Standard clinical view enabled.</p>
+                  </div>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setBreakGlassActivated(true)}
+                  className="gap-1.5 font-semibold"
+                >
+                  <AlertOctagon className="w-4 h-4" />
+                  Activate Break-Glass Override
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+"use client";
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  TrendingDown, TrendingUp, AlertTriangle, Users, ArrowRight,
+  MessageSquare, Brain, Activity, Clock, Pill, CheckSquare, Info,
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { PatientHeader } from '@/components/patient/patient-header';
+import { HealthMetricCard } from '@/components/health/health-metric-card';
+import { patientsApi, changesApi, careCircleApi, contradictionsApi, missingInfoApi } from '@/lib/api';
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { cn, getAge } from '@/lib/utils';
+import { AiResponseBlock } from '@/components/ai/ai-response-block';
+
+interface PageProps {
+  params: { patientId: string };
+}
+
+export default function PatientOverviewPage({ params }: PageProps) {
+  const defaultPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+    id: params.patientId,
+    firstName: 'Devaki',
+    lastName: 'Sundaram',
+    dateOfBirth: '1954-03-12',
+    gender: 'Female',
+  };
+
+  const [data, setData] = useState<any>({
+    patient: defaultPatient,
+    summary: {
+      primaryDoctor: 'Dr. Vikram Malhotra',
+      currentYearStatus: 'WATCH',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+      lastReviewDate: new Date().toISOString(),
+    },
+    changes: null,
+    careCircle: [
+      { id: '1', role: 'FAMILY_CAREGIVER', user: { name: 'Karthik Sundaram', role: 'FAMILY_CAREGIVER' } },
+      { id: '2', role: 'PRIMARY_CLINICIAN', user: { name: 'Dr. Vikram Malhotra', role: 'CLINICIAN' } },
+    ],
+    contradictions: [],
+    missingInfo: [],
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [
+          summary,
+          changesResp,
+          careCircle,
+          contradictions,
+          missingInfo
+        ] = await Promise.all([
+          patientsApi.summary(params.patientId).catch(() => null),
+          changesApi.whatChanged(params.patientId).catch(() => null),
+          careCircleApi.list(params.patientId).catch(() => []),
+          contradictionsApi.list(params.patientId).catch(() => []),
+          missingInfoApi.list(params.patientId).catch(() => []),
+        ]);
+
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+
+        setData({
+          patient: summary?.patient || fallbackPatient,
+          summary: summary?.summary || {
+            primaryDoctor: 'Dr. Vikram Malhotra',
+            currentYearStatus: 'WATCH',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+            lastReviewDate: new Date().toISOString(),
+          },
+          changes: changesResp ?? null,
+          careCircle: careCircle && careCircle.length > 0 ? careCircle : [
+            { id: '1', role: 'FAMILY_CAREGIVER', user: { name: 'Karthik Sundaram', role: 'FAMILY_CAREGIVER' } },
+            { id: '2', role: 'PRIMARY_CLINICIAN', user: { name: 'Dr. Vikram Malhotra', role: 'CLINICIAN' } }
+          ],
+          contradictions: (contradictions || []).filter((c: any) => c.status === 'OPEN'),
+          missingInfo: (missingInfo || []).filter((m: any) => m.status === 'OPEN'),
+        });
+      } catch (e) {
+        console.error(e);
+        const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
+          id: params.patientId,
+          firstName: 'Devaki',
+          lastName: 'Sundaram',
+          dateOfBirth: '1954-03-12',
+          gender: 'Female',
+        };
+        setData({
+          patient: fallbackPatient,
+          summary: {
+            primaryDoctor: 'Dr. Vikram Malhotra',
+            currentYearStatus: 'WATCH',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+            lastReviewDate: new Date().toISOString(),
+          },
+          changes: null,
+          careCircle: [
+            { id: '1', role: 'FAMILY_CAREGIVER', user: { name: 'Karthik Sundaram', role: 'FAMILY_CAREGIVER' } },
+            { id: '2', role: 'PRIMARY_CLINICIAN', user: { name: 'Dr. Vikram Malhotra', role: 'CLINICIAN' } }
+          ],
+          contradictions: [],
+          missingInfo: [],
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [params.patientId]);
+
+  if (loading) return <div className="p-6">Loading patient data...</div>;
+  if (!data?.patient) return <div className="p-6 text-red-500">Patient not found</div>;
+
+  const { patient, summary, careCircle, contradictions, missingInfo, changes } = data;
+
+  const patientData = {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    gender: patient.gender,
+    primaryDoctor: summary?.primaryDoctor || 'Assigned Clinician',
+    lastClinicalReview: patient.updatedAt,
+    careCircleCount: careCircle.length,
+    status: 'ACTIVE',
+    currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
+  };
+
+  const basePath = `/clinician/patients/${patient.id}`;
+
+  return (
+    <>
+      <PatientHeader patient={patientData} />
+      <div className="p-6 space-y-6 animate-fade-in">
+        {/* Current Status section */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Current Status</h2>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`${basePath}/baseline`}>View Personal Baseline <ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Link>
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <HealthMetricCard
+              label="Medication Adherence"
+              current="72%"
+              baseline="95%"
+              baselineLabel="95%"
+              change={-23}
+              trend="down"
+            />
+            <HealthMetricCard
+              label="Daily Mobility"
+              current="1,950"
+              baseline="3,100"
+              baselineLabel="3,100 steps/day"
+              unit="steps"
+              change={-37}
+              trend="down"
+            />
+            <HealthMetricCard
+              label="Appetite"
+              current="Reduced"
+              baseline="Normal"
+              baselineLabel="Normal"
+              trend="down"
+              change={null}
+            />
+            <HealthMetricCard
+              label="Confusion Reports"
+              current={4}
+              baselineLabel="Rare"
+              trend="up"
+              invertTrend={true}
+              unit="reports (2 wks)"
+              change={null}
+            />
+            <HealthMetricCard
+              label="Sleep Duration"
+              current="5.4 hrs"
+              baselineLabel="7 hrs"
+              change={-23}
+              trend="down"
+            />
+            <HealthMetricCard
+              label="Functional Status"
+              current="Needs support"
+              baselineLabel="Independent"
+              trend="down"
+              change={null}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-6">
+          {/* What Changed */}
+          <div className="col-span-2 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">What Changed?</h2>
+                  <p className="text-xs text-muted-foreground">AI-detected meaningful deviations from personal baseline</p>
+                </div>
+                <Link href={`${basePath}/evidence`}>
+                  <Button variant="ghost" size="sm">View Evidence <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
+                </Link>
+              </div>
+
+              <div className="space-y-2">
+                {changes?.changes?.map((change: any) => (
+                  <div
+                    key={change.id}
+                    className="flex items-start gap-4 rounded-xl border bg-card p-4 card-hover"
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 flex-shrink-0 text-base">
+                      {change.icon || '📊'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">{change.title}</p>
+                        <span className={cn(
+                          'rounded-full border px-2 py-0.5 text-xs font-medium flex-shrink-0',
+                          change.severity === 'CONCERN'
+                            ? 'bg-orange-50 text-orange-700 border-orange-200'
+                            : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                        )}>
+                          {change.severity}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{change.detail}</p>
+                    </div>
+                  </div>
+                )) || <p className="text-sm text-muted-foreground">No significant changes detected.</p>}
+              </div>
+            </div>
+
+            {/* Why Now */}
+            {changes?.whyNow && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    Why is this showing now?
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <AiResponseBlock confidence={changes.confidenceScore != null ? Math.round(changes.confidenceScore * 100) : 76}>
+                    <ul className="space-y-2 mb-2">
+                      {changes.whyNow.map((reason: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm">
+                          <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                    {changes.corroboration && (
+                      <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <p className="text-sm font-semibold text-emerald-800">
+                          🤝 {changes.corroboration.label}
+                        </p>
+                        <p className="text-xs text-emerald-700 mt-1">{changes.corroboration.description}</p>
+                        <p className="text-xs text-emerald-600 mt-1">
+                          {changes.corroboration.reporters.join(' · ')}
+                        </p>
+                      </div>
+                    )}
+                  </AiResponseBlock>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-primary" />
+                    Health Timeline
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`${basePath}/timeline`}>Full Timeline <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">View the full health timeline for this patient.</p>
+                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                  <Link href={`${basePath}/timeline`}>Open Timeline</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right column */}
+          <div className="space-y-4">
+            {/* Care Circle */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    Care Circle
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" className="text-xs" asChild>
+                    <Link href={`${basePath}/care-circle`}>View all</Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {careCircle.slice(0, 4).map((member: any, i: number) => {
+                  const displayName = member.name || member.user?.name || `Caregiver ${i + 1}`;
+                  const relationship = member.relationshipType || member.role || 'Care Team';
+                  const obs = member.observationCount ?? 12;
+                  return (
+                    <div key={member.userId || member.id || i} className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
+                        {displayName[0] || 'C'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{displayName}</p>
+                        <p className="text-xs text-muted-foreground">{relationship}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">{obs} obs.</p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <Link href={`${basePath}/care-circle`} className="flex items-center gap-1 text-xs text-primary hover:underline mt-2">
+                  View full care circle <ArrowRight className="h-3 w-3" />
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* Contradictions alert */}
+            {contradictions.length > 0 && (
+              <Card className="border-red-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2 text-red-700">
+                    <AlertTriangle className="h-4 w-4" />
+                    {contradictions.length} Record Conflict{contradictions.length > 1 ? 's' : ''}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {contradictions.map((c: any) => (
+                    <div key={c.id} className="rounded-lg bg-red-50 border border-red-100 p-3">
+                      <p className="text-xs font-medium text-red-800">{c.type.replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-red-700 mt-0.5 line-clamp-2">{c.description}</p>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" className="w-full border-red-200 text-red-700 hover:bg-red-50" asChild>
+                    <Link href={`${basePath}/contradictions`}>Review Conflicts</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Missing info */}
+            {missingInfo.length > 0 && (
+              <Card className="border-yellow-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2 text-yellow-700">
+                    <Info className="h-4 w-4" />
+                    {missingInfo.length} Information Gap{missingInfo.length > 1 ? 's' : ''}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-1">
+                    {missingInfo.slice(0, 3).map((m: any) => (
+                      <li key={m.id} className="text-xs text-yellow-800 flex items-start gap-1.5">
+                        <span className="mt-1 h-1 w-1 rounded-full bg-yellow-600 flex-shrink-0" />
+                        {m.description}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button variant="outline" size="sm" className="w-full mt-3 border-yellow-200 text-yellow-700 hover:bg-yellow-50" asChild>
+                    <Link href={`${basePath}/missing-information`}>View Gaps</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Quick actions */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {[
+                  { href: `${basePath}/clinical-brief`, icon: Brain, label: 'Generate Clinical Brief' },
+                  { href: `${basePath}/timeline`, icon: Activity, label: 'View Health Timeline' },
+                  { href: `${basePath}/episodes`, icon: CheckSquare, label: 'Episode Comparison' },
+                  { href: `${basePath}/evidence`, icon: Info, label: 'Explore Evidence' },
+                ].map(({ href, icon: Icon, label }) => (
+                  <Button key={href} variant="outline" size="sm" className="w-full justify-start gap-2" asChild>
+                    <Link href={href}><Icon className="h-3.5 w-3.5" />{label}</Link>
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

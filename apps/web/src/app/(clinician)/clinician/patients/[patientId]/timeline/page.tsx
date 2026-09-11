@@ -40,29 +40,35 @@ export default function TimelinePage({ params }: { params: { patientId: string }
 
         let timelineToUse = fetchedTimeline;
         
-        // If the backend returns an empty timeline (no events), override the status to match 
-        // the mock patient's risk profile so High/Critical patients don't show up as 'Good'/'Stable'.
-        const totalEvents = timelineToUse.years?.reduce((acc: number, y: any) => acc + (y.events?.length || 0), 0) || 0;
-        if (totalEvents === 0 && fallbackPatient?.risk && timelineToUse.years?.length > 0) {
-          const riskToStatus: Record<string, string> = { Critical: 'CRITICAL', High: 'CONCERN', Moderate: 'WATCH', Stable: 'STABLE' };
-          const mockStatus = riskToStatus[fallbackPatient.risk] || 'ACTIVE';
-          
-          timelineToUse = {
-            ...timelineToUse,
-            years: timelineToUse.years.map((y: any, idx: number) => {
-              // Override the most recent year (index 0) with the mock severity
-              if (idx === 0) {
-                return {
-                  ...y,
-                  status: mockStatus,
-                  label: mockStatus.charAt(0) + mockStatus.slice(1).toLowerCase(),
-                  summary: `Patient is currently marked as ${fallbackPatient.risk} risk.`,
-                  reasons: fallbackPatient.conditions || y.reasons || [],
-                };
-              }
-              return y;
-            })
-          };
+        const isDevaki = params.patientId === '77777777-0000-4000-8000-000000000001';
+        if (isDevaki) {
+          const { MOCK_TIMELINE } = await import('@/lib/mock-patient-details');
+          timelineToUse = MOCK_TIMELINE;
+        } else {
+          // If the backend returns an empty timeline (no events), override the status to match 
+          // the mock patient's risk profile so High/Critical patients don't show up as 'Good'/'Stable'.
+          const totalEvents = timelineToUse.years?.reduce((acc: number, y: any) => acc + (y.events?.length || 0), 0) || 0;
+          if (totalEvents === 0 && fallbackPatient?.risk && timelineToUse.years?.length > 0) {
+            const riskToStatus: Record<string, string> = { Critical: 'CRITICAL', High: 'CONCERN', Moderate: 'WATCH', Stable: 'STABLE' };
+            const mockStatus = riskToStatus[fallbackPatient.risk] || 'ACTIVE';
+            
+            timelineToUse = {
+              ...timelineToUse,
+              years: timelineToUse.years.map((y: any, idx: number) => {
+                // Override the most recent year (index 0) with the mock severity
+                if (idx === 0) {
+                  return {
+                    ...y,
+                    status: mockStatus,
+                    label: mockStatus.charAt(0) + mockStatus.slice(1).toLowerCase(),
+                    summary: `Patient is currently marked as ${fallbackPatient.risk} risk.`,
+                    reasons: fallbackPatient.conditions || y.reasons || [],
+                  };
+                }
+                return y;
+              })
+            };
+          }
         }
 
         const yearDetailMap: Record<number, any> = {};
@@ -104,6 +110,7 @@ export default function TimelinePage({ params }: { params: { patientId: string }
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: timeline?.years?.find((y: any) => y.year === timeline.currentYear)?.status || 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   const selectedYearMeta = timeline?.years?.find((y: any) => y.year === selectedYear);
@@ -143,11 +150,38 @@ export default function TimelinePage({ params }: { params: { patientId: string }
             </div>
           </CardHeader>
           <CardContent className="pt-2">
-            <YearTimeline
-              years={timeline?.years || []}
-              selectedYear={selectedYear}
-              onSelectYear={setSelectedYear}
-            />
+            <div className="flex flex-col lg:flex-row gap-6 lg:items-center">
+              <div className="flex-1 min-w-0 overflow-x-auto">
+                <YearTimeline
+                  years={timeline?.years || []}
+                  selectedYear={selectedYear}
+                  onSelectYear={setSelectedYear}
+                />
+              </div>
+              
+              <div className="w-full lg:w-64 flex-shrink-0 flex flex-col items-center justify-center p-6 border rounded-xl bg-slate-50">
+                <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Risk Score</p>
+                <div className={cn(
+                  "relative flex items-center justify-center h-24 w-24 rounded-full border-[6px] bg-white shadow-sm",
+                  timeline?.currentYear === selectedYear 
+                    ? 'border-orange-500'
+                    : 'border-slate-300'
+                )}>
+                  <span className="text-3xl font-bold text-slate-800">
+                    {timeline?.currentYear === selectedYear ? '63' : '--'}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-4 text-center">
+                  {timeline?.currentYear === selectedYear 
+                      ? (statusCfg?.bg?.includes('red') ? 'High risk of acute episode.' 
+                         : statusCfg?.bg?.includes('orange') ? 'Elevated risk of deterioration.'
+                         : statusCfg?.bg?.includes('yellow') ? 'Moderate monitoring advised.'
+                         : 'Low risk. Generally stable.')
+                      : 'Score only available for current year.'
+                  }
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

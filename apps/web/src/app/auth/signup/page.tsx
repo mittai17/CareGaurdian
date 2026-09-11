@@ -22,6 +22,7 @@ export default function SignupPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [aadhaarNo, setAadhaarNo] = useState('');
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +38,7 @@ export default function SignupPage() {
         email: email.trim().toLowerCase(),
         password,
         roles: [role],
+        aadhaarNo: aadhaarNo.trim(),
       });
       const token = res?.accessToken || res?.data?.accessToken;
       const user = res?.user || res?.data?.user;
@@ -139,6 +141,20 @@ export default function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                   placeholder="8+ characters"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Aadhaar Number</label>
+                <input
+                  type="text"
+                  required
+                  pattern="\d{12}"
+                  title="Aadhaar number must be exactly 12 digits"
+                  value={aadhaarNo}
+                  onChange={(e) => setAadhaarNo(e.target.value.replace(/\D/g, ''))}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring font-mono"
+                  placeholder="e.g. 123456789012"
+                  maxLength={12}
                 />
               </div>
               <div>

@@ -1,4 +1,5 @@
 "use client";
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 
 import { useEffect, useState } from 'react';
 import { TrendingDown, TrendingUp, Info, AlertTriangle } from 'lucide-react';
@@ -27,7 +28,7 @@ export default function BaselinePage({ params }: { params: { patientId: string }
           baselineApi.get(params.patientId).catch(() => null),
         ]);
         setData({
-          patient: summary?.patient,
+          patient: summary?.patient || MOCK_PATIENTS_MAP[params.patientId],
           baseline: baselineResp?.data || null,
         });
       } catch (e) {
@@ -56,6 +57,7 @@ export default function BaselinePage({ params }: { params: { patientId: string }
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: currentYearStatus,
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   return (

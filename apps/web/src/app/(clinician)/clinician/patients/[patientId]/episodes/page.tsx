@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { PatientHeader } from '@/components/patient/patient-header';
 import { patientsApi, encountersApi } from '@/lib/api';
 import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { MOCK_ENCOUNTERS } from '@/lib/mock-patient-details';
 import { cn, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -38,9 +39,16 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
           gender: 'Unknown',
         };
 
-        const encounters = Array.isArray(encountersResp)
-          ? encountersResp
-          : (encountersResp as any)?.encounters ?? [];
+        const isDevaki = params.patientId === '77777777-0000-4000-8000-000000000001';
+        let encounters = [];
+        
+        if (isDevaki) {
+          encounters = MOCK_ENCOUNTERS;
+        } else {
+          encounters = Array.isArray(encountersResp)
+            ? encountersResp
+            : (encountersResp as any)?.encounters ?? [];
+        }
 
         setData({
           patient: summary?.patient || fallbackPatient,
@@ -71,6 +79,7 @@ export default function EpisodesPage({ params }: { params: { patientId: string }
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: patient.currentYearStatus ?? 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   const emergencyVisits = encounters.filter((e: any) => e.type === 'EMERGENCY');

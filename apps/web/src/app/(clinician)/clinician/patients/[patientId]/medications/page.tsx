@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { PatientHeader } from '@/components/patient/patient-header';
 import { patientsApi, medicationsApi } from '@/lib/api';
 import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
+import { MOCK_MEDICATIONS } from '@/lib/mock-patient-details';
 import { cn, formatDate } from '@/lib/utils';
 
 const signalConfig: Record<string, { label: string; color: string; icon: string }> = {
@@ -36,9 +37,16 @@ export default function MedicationsPage({ params }: { params: { patientId: strin
           gender: 'Female',
         };
 
+        const isDevaki = params.patientId === '77777777-0000-4000-8000-000000000001';
+        const resolvedMeds = isDevaki 
+          ? MOCK_MEDICATIONS 
+          : (!medsResp || (Array.isArray(medsResp) && medsResp.length === 0))
+            ? MOCK_MEDICATIONS
+            : medsResp;
+
         setData({
           patient: summary?.patient || fallbackPatient,
-          meds: medsResp || [],
+          meds: resolvedMeds,
         });
       } catch (e) {
         console.error(e);
@@ -65,6 +73,7 @@ export default function MedicationsPage({ params }: { params: { patientId: strin
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   const criticalMeds = meds.filter((m: any) => m.signals?.includes('POTENTIAL_ALLERGY_CONFLICT'));

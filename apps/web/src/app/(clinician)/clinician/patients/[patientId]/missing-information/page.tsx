@@ -1,4 +1,5 @@
 "use client";
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 
 import { useEffect, useState } from 'react';
 import { Info, CheckCircle, AlertTriangle } from 'lucide-react';
@@ -25,9 +26,17 @@ export default function MissingInfoPage({ params }: { params: { patientId: strin
           patientsApi.summary(params.patientId).catch(() => null),
           missingInfoApi.list(params.patientId).catch(() => null),
         ]);
+
+        const isDevaki = params.patientId === '77777777-0000-4000-8000-000000000001';
+        let gaps = missingResp?.data || [];
+        if (isDevaki) {
+          const { MOCK_GAPS } = await import('@/lib/mock-patient-details');
+          gaps = MOCK_GAPS;
+        }
+
         setData({
-          patient: summary?.patient,
-          gaps: missingResp?.data || [],
+          patient: summary?.patient || MOCK_PATIENTS_MAP[params.patientId],
+          missingInfo: gaps,
         });
       } catch (e) {
         console.error(e);
@@ -54,6 +63,7 @@ export default function MissingInfoPage({ params }: { params: { patientId: strin
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   return (

@@ -12,7 +12,10 @@ import { AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, FlaskConical, Ca
 import { formatDate } from '@/lib/utils';
 
 // Per-patient mock labs when none found in DB
+import { MOCK_LABS } from '@/lib/mock-patient-details';
+
 const PATIENT_LABS: Record<string, any[]> = {
+  '77777777-0000-4000-8000-000000000001': MOCK_LABS,
   '66c67bf7-f6e3-478e-b972-20d7d25b4958': [
     { id:'r1', testName:'HbA1c', category:'Glycemic Control', value:'7.8', unit:'%', refRange:'< 5.7', flag:'HIGH', collectedAt:'2026-09-02', trend:'up' },
     { id:'r2', testName:'Fasting Plasma Glucose', category:'Glycemic Control', value:'148', unit:'mg/dL', refRange:'70-99', flag:'HIGH', collectedAt:'2026-09-02', trend:'up' },

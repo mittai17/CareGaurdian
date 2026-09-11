@@ -1,4 +1,5 @@
 "use client";
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 
 import { useEffect, useState } from 'react';
 import { CheckCircle, Clock, AlertCircle, Shield, Plus, Send } from 'lucide-react';
@@ -41,9 +42,17 @@ export default function CareCirclePage({ params }: { params: { patientId: string
           patientsApi.summary(params.patientId).catch(() => null),
           careCircleApi.list(params.patientId).catch(() => []),
         ]);
+
+        const isDevaki = params.patientId === '77777777-0000-4000-8000-000000000001';
+        let members = careCircleResp || [];
+        if (isDevaki) {
+          const { MOCK_CARE_CIRCLE } = await import('@/lib/mock-patient-details');
+          members = MOCK_CARE_CIRCLE;
+        }
+
         setData({
-          patient: summary?.patient,
-          members: careCircleResp || [],
+          patient: summary?.patient || MOCK_PATIENTS_MAP[params.patientId],
+          members: members,
         });
       } catch (e) {
         console.error(e);
@@ -79,6 +88,7 @@ export default function CareCirclePage({ params }: { params: { patientId: string
     careCircleCount: displayMembers.length,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   return (

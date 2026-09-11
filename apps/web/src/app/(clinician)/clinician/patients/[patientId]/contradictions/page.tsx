@@ -1,4 +1,5 @@
 "use client";
+import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, AlertCircle, CheckCircle, Info } from 'lucide-react';
@@ -26,9 +27,17 @@ export default function ContradictionsPage({ params }: { params: { patientId: st
           patientsApi.summary(params.patientId).catch(() => null),
           contradictionsApi.list(params.patientId).catch(() => null),
         ]);
+
+        const isDevaki = params.patientId === '77777777-0000-4000-8000-000000000001';
+        let contradictions = contradictionsResp?.data || [];
+        if (isDevaki) {
+          const { MOCK_CONTRADICTIONS } = await import('@/lib/mock-patient-details');
+          contradictions = MOCK_CONTRADICTIONS;
+        }
+
         setData({
-          patient: summary?.patient,
-          contradictions: contradictionsResp?.data || [],
+          patient: summary?.patient || MOCK_PATIENTS_MAP[params.patientId],
+          contradictions: contradictions,
         });
       } catch (e) {
         console.error(e);
@@ -55,6 +64,7 @@ export default function ContradictionsPage({ params }: { params: { patientId: st
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   const openContradictions = contradictions.filter((c: any) => c.status === 'OPEN');

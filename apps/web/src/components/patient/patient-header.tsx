@@ -24,6 +24,7 @@ interface PatientHeaderProps {
     status?: string;
     currentYearStatus?: string;
     dementiaStage?: string;
+    aadhaarNo?: string; // Aadhaar-based unique patient identifier
   };
 }
 
@@ -121,7 +122,13 @@ export function PatientHeader({ patient }: PatientHeaderProps) {
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {age} years · {patient.gender ?? 'Unknown'} ·{' '}
-                    <span className="text-xs font-mono text-muted-foreground">ID: {patient.id.slice(0, 12)}…</span>
+                    {patient.aadhaarNo ? (
+                      <span className="text-xs font-mono text-muted-foreground">
+                        Aadhaar: XXXX XXXX {patient.aadhaarNo.slice(-4)}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-mono text-muted-foreground">ID: {patient.id.slice(0, 12)}…</span>
+                    )}
                   </p>
                 </div>
               </div>

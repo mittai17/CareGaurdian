@@ -8,6 +8,7 @@ import { PatientHeader } from '@/components/patient/patient-header';
 import { patientsApi, observationsApi } from '@/lib/api';
 import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 import { cn, formatDate, timeAgo } from '@/lib/utils';
+import { MOCK_OBSERVATIONS } from '@/lib/mock-patient-details';
 
 const categoryIcons: Record<string, string> = {
   CONFUSION: '🧠', FALL: '⚠️', NEAR_FALL: '⚠️', APPETITE: '🍽️',
@@ -32,18 +33,24 @@ export default function ObservationsPage({ params }: { params: { patientId: stri
           observationsApi.list(params.patientId).catch(() => []),
         ]);
 
-        // Normalise API response → UI shape
-        const rawObs: any[] = Array.isArray(obsResp) ? obsResp : (obsResp as any)?.observations ?? [];
-        const reports = rawObs.map((o: any) => ({
-          id: o.id,
-          reporter: o.reportedBy?.name ?? o.user?.name ?? (o.sourceType === 'CLINICIAN' ? 'Clinician' : o.sourceType === 'PATIENT' ? 'Patient' : 'Care Team'),
-          relationship: o.reportedBy?.role ?? (o.sourceType === 'CLINICIAN' ? 'Clinical Staff' : o.sourceType === 'PATIENT' ? 'Patient (Self)' : 'Caregiver'),
-          avatar: (o.reportedBy?.name ?? o.user?.name ?? o.sourceType ?? 'C')[0].toUpperCase(),
-          text: o.rawText ?? o.text ?? '',
-          date: o.occurredAt ?? o.observedAt ?? o.createdAt ?? new Date().toISOString(),
-          category: o.category ?? 'OTHER',
-          status: o.verificationStatus ?? o.status ?? 'REPORTED',
-        }));
+        const isDevaki = params.patientId === '77777777-0000-4000-8000-000000000001';
+        
+        let reports = [];
+        if (isDevaki) {
+          reports = MOCK_OBSERVATIONS;
+        } else {
+          const rawObs: any[] = Array.isArray(obsResp) ? obsResp : (obsResp as any)?.observations ?? [];
+          reports = rawObs.map((o: any) => ({
+            id: o.id,
+            reporter: o.reportedBy?.name ?? o.user?.name ?? (o.sourceType === 'CLINICIAN' ? 'Clinician' : o.sourceType === 'PATIENT' ? 'Patient' : 'Care Team'),
+            relationship: o.reportedBy?.role ?? (o.sourceType === 'CLINICIAN' ? 'Clinical Staff' : o.sourceType === 'PATIENT' ? 'Patient (Self)' : 'Caregiver'),
+            avatar: (o.reportedBy?.name ?? o.user?.name ?? o.sourceType ?? 'C')[0].toUpperCase(),
+            text: o.rawText ?? o.text ?? '',
+            date: o.occurredAt ?? o.observedAt ?? o.createdAt ?? new Date().toISOString(),
+            category: o.category ?? 'OTHER',
+            status: o.verificationStatus ?? o.status ?? 'REPORTED',
+          }));
+        }
 
         const fallbackPatient = MOCK_PATIENTS_MAP[params.patientId] || {
           id: params.patientId,
@@ -82,6 +89,7 @@ export default function ObservationsPage({ params }: { params: { patientId: stri
     careCircleCount: 5,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   return (

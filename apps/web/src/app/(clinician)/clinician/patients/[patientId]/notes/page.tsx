@@ -24,6 +24,15 @@ interface ClinicalNote {
 }
 
 const PATIENT_NOTES: Record<string, ClinicalNote[]> = {
+  '77777777-0000-4000-8000-000000000001': [
+    {
+      id: 'n1', date: '2026-09-02T09:00:00Z', author: 'Dr. Elena Chen', authorRole: 'Primary Care', type: 'Routine Follow-up', signed: true,
+      subjective: 'Patient reports mild dizziness when standing up quickly. Caregiver (Karthik) notes she has been occasionally forgetting her evening medications and seems a bit unsteady on stairs.',
+      objective: 'BP: 122/80 mmHg (sitting), 118/76 mmHg (standing). HR: 68 bpm. Lungs clear. Neuro exam normal except for mild unsteadiness on Romberg test.',
+      assessment: '1. Orthostatic hypotension, likely related to age/medication. 2. Mild cognitive/functional decline reported by caregiver.',
+      plan: '1. Advised to stay hydrated and change positions slowly. 2. Caregiver to use pill organizer with alarms for evening meds. 3. Consider physical therapy for balance/stair training.'
+    }
+  ],
   '66c67bf7-f6e3-478e-b972-20d7d25b4958': [
     { id:'n1', date:'2026-09-08T10:30:00Z', author:'Dr. Arjun Nair', authorRole:'General Physician', type:'Quarterly Diabetes Review', signed:true,
       subjective:'Ravi Kumar reports he has been checking his blood sugars daily. Wife Nalini states he sometimes skips medications. He developed a dental infection 2 weeks ago and was started on Amoxicillin by the dentist. CRITICAL: Ravi has a known penicillin allergy (rash reaction documented). Amoxicillin is a penicillin-class antibiotic.',

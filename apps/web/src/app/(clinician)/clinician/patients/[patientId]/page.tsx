@@ -14,6 +14,7 @@ import { HealthMetricCard } from '@/components/health/health-metric-card';
 import { patientsApi, changesApi, careCircleApi, contradictionsApi, missingInfoApi } from '@/lib/api';
 import { MOCK_PATIENTS_MAP } from '@/lib/mock-patients';
 import { cn, getAge } from '@/lib/utils';
+import { AiResponseBlock } from '@/components/ai/ai-response-block';
 
 interface PageProps {
   params: { patientId: string };
@@ -132,6 +133,7 @@ export default function PatientOverviewPage({ params }: PageProps) {
     careCircleCount: careCircle.length,
     status: 'ACTIVE',
     currentYearStatus: 'ACTIVE',
+    aadhaarNo: patient.aadhaarNo ?? MOCK_PATIENTS_MAP[patient.id]?.aadhaarNo,
   };
 
   const basePath = `/clinician/patients/${patient.id}`;
@@ -252,31 +254,86 @@ export default function PatientOverviewPage({ params }: PageProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-2">
-                    {changes.whyNow.map((reason: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2.5 text-sm">
-                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                        {reason}
-                      </li>
-                    ))}
-                  </ul>
-                  {changes.corroboration && (
-                    <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <p className="text-sm font-semibold text-emerald-800">
-                        🤝 {changes.corroboration.label}
-                      </p>
-                      <p className="text-xs text-emerald-700 mt-1">{changes.corroboration.description}</p>
-                      <p className="text-xs text-emerald-600 mt-1">
-                        {changes.corroboration.reporters.join(' · ')}
-                      </p>
-                    </div>
-                  )}
-                  {changes.disclaimer && (
-                    <p className="mt-3 text-xs text-muted-foreground italic">{changes.disclaimer}</p>
-                  )}
+                  <AiResponseBlock confidence={changes.confidenceScore != null ? Math.round(changes.confidenceScore * 100) : 76}>
+                    <ul className="space-y-2 mb-2">
+                      {changes.whyNow.map((reason: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm">
+                          <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                    {changes.corroboration && (
+                      <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <p className="text-sm font-semibold text-emerald-800">
+                          🤝 {changes.corroboration.label}
+                        </p>
+                        <p className="text-xs text-emerald-700 mt-1">{changes.corroboration.description}</p>
+                        <p className="text-xs text-emerald-600 mt-1">
+                          {changes.corroboration.reporters.join(' · ')}
+                        </p>
+                      </div>
+                    )}
+                  </AiResponseBlock>
                 </CardContent>
               </Card>
             )}
+
+            {/* Caregiver Reports (Past 30 Days) */}
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+              <CardHeader className="pb-3 bg-slate-50/50 rounded-t-xl">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    Caregiver Observations <span className="text-muted-foreground font-normal text-sm">(Past 30 Days)</span>
+                  </div>
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                    Family / Personal
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 grid md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h4 className="text-sm font-bold flex items-center gap-2 text-slate-800">
+                      <Brain className="h-4 w-4 text-purple-600" />
+                      Cognitive Decline
+                    </h4>
+                    <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 border-transparent shadow-none">Mild Decline</Badge>
+                  </div>
+                  <ul className="text-sm space-y-2.5 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-purple-500 mt-0.5">•</span> 
+                      <span className="leading-snug">Increased forgetfulness with evening medications (reported 4 times).</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-purple-500 mt-0.5">•</span> 
+                      <span className="leading-snug">Occasional confusion regarding appointments and dates.</span>
+                    </li>
+                  </ul>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h4 className="text-sm font-bold flex items-center gap-2 text-slate-800">
+                      <Activity className="h-4 w-4 text-emerald-600" />
+                      Functional Decline
+                    </h4>
+                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-transparent shadow-none">Monitor</Badge>
+                  </div>
+                  <ul className="text-sm space-y-2.5 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 mt-0.5">•</span> 
+                      <span className="leading-snug">Reduced mobility; now requires handrail support on stairs.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 mt-0.5">•</span> 
+                      <span className="leading-snug">Decreased appetite noted during dinner times over the past week.</span>
+                    </li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader className="pb-3">

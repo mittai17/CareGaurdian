@@ -79,6 +79,14 @@ export class MockProvider implements LlmProvider {
       return `${FALLBACK_PREFIX} Based on the available patient records, I can provide a basic summary. For AI-powered answers, please configure GEMINI_API_KEY.\n\nSources: Patient health records, observations, medication history`;
     }
 
+    if (lower.includes('dosage range and max dosage')) {
+      return JSON.stringify({
+        fda_labeled_range: "500-2000mg/day (max 2550mg/day)",
+        flag: "within range",
+        evidence: "[local fallback] Dosage is within the typical FDA range for non-renal patients."
+      });
+    }
+
     if (lower.includes('safety') || lower.includes('validation')) {
       return JSON.stringify({ pass: true, notes: `${FALLBACK_PREFIX} Safety check passed (local rules)` });
     }

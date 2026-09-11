@@ -284,6 +284,15 @@ ${context || 'No matching records found.'}`;
     return this.gateway.analyzeObservation(observation);
   }
 
+  /**
+   * Check medication dosage using openFDA
+   */
+  async checkDosage(med: import('@baseline/ai').MedicationInput) {
+    const { DosageCheckAgent } = await import('@baseline/ai');
+    const agent = new DosageCheckAgent(this.gateway);
+    return agent.checkDosage(med);
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------

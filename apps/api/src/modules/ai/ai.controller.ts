@@ -97,6 +97,26 @@ export class AiController {
     return { data: result };
   }
 
+  /**
+   * POST /ai/dosage-check
+   * Check medication dosage using openFDA.
+   */
+  @Post('ai/dosage-check')
+  @ApiOperation({
+    summary: 'Check medication dosage against openFDA labeled range',
+    description: 'Flags potential medication dosage miscalculations using the openFDA API.',
+  })
+  async checkDosage(
+    @Body() body: import('@baseline/ai').MedicationInput,
+  ) {
+    if (!body.drug_name) {
+      throw new BadRequestException('drug_name is required');
+    }
+
+    const result = await this.aiService.checkDosage(body);
+    return { data: result };
+  }
+
   // ---------------------------------------------------------------------------
   // Inline brief builder (avoids circular dependency with BriefModule)
   // ---------------------------------------------------------------------------

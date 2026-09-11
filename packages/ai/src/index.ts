@@ -12,3 +12,4 @@ export { GeminiProvider } from './gemini.provider';
 export { MockProvider } from './mock.provider';
 export { AIGatewayService } from './ai-gateway.service';
 export type { ObservationAnalysis } from './ai-gateway.service';
+export * from './agents/dosage-check.agent';
